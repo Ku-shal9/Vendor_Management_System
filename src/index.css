@@ -1,17 +1,179 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-display: "Outfit", "Inter", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-app: var(--vms-app);
+  --color-surface: var(--vms-surface);
+  --color-surface-muted: var(--vms-surface-muted);
+  --color-ink: var(--vms-ink);
+  --color-ink-muted: var(--vms-ink-muted);
+  --color-ink-subtle: var(--vms-ink-subtle);
+  --color-border: var(--vms-border);
+  --color-border-subtle: var(--vms-border-subtle);
+  --color-primary: var(--vms-primary);
+  --color-primary-hover: var(--vms-primary-hover);
+  --color-primary-tint: var(--vms-primary-tint);
+  --color-sidebar: var(--vms-sidebar);
+  --color-sidebar-border: var(--vms-sidebar-border);
+  --color-sidebar-ink: var(--vms-sidebar-ink);
+  --color-sidebar-hover: var(--vms-sidebar-hover);
+  --color-success-surface: var(--vms-success-surface);
+  --color-success-ink: var(--vms-success-ink);
+  --color-danger-surface: var(--vms-danger-surface);
+  --color-danger-ink: var(--vms-danger-ink);
+  --color-overlay: var(--vms-overlay);
 }
 
-/* Custom scrollbar and polish styling */
+:root {
+  color-scheme: light;
+  --vms-app: oklch(98.4% 0.003 248);
+  --vms-surface: oklch(100% 0 0);
+  --vms-surface-muted: oklch(98.2% 0.004 248);
+  --vms-ink: oklch(20.8% 0.042 266);
+  --vms-ink-muted: oklch(46.5% 0.025 250);
+  --vms-ink-subtle: oklch(55% 0.02 250);
+  --vms-border: oklch(88% 0.01 250);
+  --vms-border-subtle: oklch(94% 0.006 250);
+  --vms-primary: oklch(54.6% 0.215 263);
+  --vms-primary-hover: oklch(48% 0.2 263);
+  --vms-primary-tint: oklch(96% 0.03 263);
+  --vms-sidebar: oklch(20.8% 0.042 266);
+  --vms-sidebar-border: oklch(28% 0.03 265);
+  --vms-sidebar-ink: oklch(70% 0.02 265);
+  --vms-sidebar-hover: oklch(28% 0.03 265);
+  --vms-success-surface: oklch(96% 0.04 163);
+  --vms-success-ink: oklch(42% 0.12 163);
+  --vms-danger-surface: oklch(97% 0.02 12);
+  --vms-danger-ink: oklch(50% 0.2 12);
+  --vms-overlay: oklch(15% 0.02 265 / 0.45);
+}
+
+.dark {
+  color-scheme: dark;
+  --vms-app: oklch(17% 0.02 265);
+  --vms-surface: oklch(22% 0.022 265);
+  --vms-surface-muted: oklch(26% 0.022 265);
+  --vms-ink: oklch(96% 0.01 265);
+  --vms-ink-muted: oklch(78% 0.015 265);
+  --vms-ink-subtle: oklch(65% 0.02 265);
+  --vms-border: oklch(32% 0.02 265);
+  --vms-border-subtle: oklch(28% 0.018 265);
+  --vms-primary: oklch(64% 0.17 263);
+  --vms-primary-hover: oklch(70% 0.15 263);
+  --vms-primary-tint: oklch(28% 0.04 263);
+  --vms-sidebar: oklch(14% 0.025 265);
+  --vms-sidebar-border: oklch(22% 0.022 265);
+  --vms-sidebar-ink: oklch(68% 0.02 265);
+  --vms-sidebar-hover: oklch(22% 0.025 265);
+  --vms-success-surface: oklch(28% 0.05 163);
+  --vms-success-ink: oklch(78% 0.12 163);
+  --vms-danger-surface: oklch(28% 0.04 12);
+  --vms-danger-ink: oklch(78% 0.14 12);
+  --vms-overlay: oklch(8% 0.02 265 / 0.72);
+}
+
 body {
   font-family: var(--font-sans);
-  background-color: var(--color-slate-50);
+  background-color: var(--vms-app);
+  color: var(--vms-ink);
   margin: 0;
   padding: 0;
 }
 
+@layer components {
+  .vms-page {
+    @apply max-w-[1200px] mx-auto px-4 py-8 pb-24 md:pb-12;
+  }
+
+  .vms-page-narrow {
+    @apply max-w-4xl mx-auto px-4 py-8 pb-24;
+  }
+
+  .vms-title {
+    @apply font-display text-2xl md:text-3xl font-extrabold text-ink text-balance;
+  }
+
+  .vms-skip-link {
+    @apply sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[70] focus:px-4 focus:py-2 focus:bg-surface focus:text-ink focus:border focus:border-border focus:rounded-lg focus:shadow-md focus:outline-none;
+  }
+
+  .vms-panel {
+    @apply bg-surface border border-border rounded-2xl shadow-xs;
+  }
+
+  .vms-panel-header {
+    @apply p-6 border-b border-border-subtle;
+  }
+
+  .vms-summary-bar {
+    @apply flex flex-wrap items-center gap-x-6 gap-y-2 mb-8 text-sm text-ink-muted border-b border-border pb-4;
+  }
+
+  .vms-input {
+    @apply w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-ink outline-none transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary;
+  }
+
+  .vms-label {
+    @apply block text-xs font-bold text-ink-subtle uppercase tracking-wide;
+  }
+
+  .vms-btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-hover disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors;
+  }
+
+  .vms-btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border text-ink-muted text-sm font-semibold rounded-xl hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors;
+  }
+
+  .vms-btn-danger {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-danger-ink text-white text-sm font-semibold rounded-xl hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-ink transition-opacity;
+  }
+
+  .vms-table-wrap {
+    @apply overflow-x-auto;
+  }
+
+  .vms-table {
+    @apply w-full text-left min-w-[640px];
+  }
+
+  .vms-table-head {
+    @apply bg-surface-muted text-xs font-bold text-ink-subtle uppercase;
+  }
+
+  .vms-table-row {
+    @apply hover:bg-surface-muted transition-colors;
+  }
+
+  .vms-link {
+    @apply text-sm font-semibold text-primary hover:text-primary-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary rounded;
+  }
+
+  .vms-empty {
+    @apply px-6 py-10 text-sm text-ink-muted text-center;
+  }
+
+  .vms-alert-error {
+    @apply text-sm text-danger-ink font-medium bg-danger-surface px-4 py-3 rounded-xl border border-danger-ink/15;
+  }
+
+  .vms-alert-success {
+    @apply text-sm text-success-ink font-medium bg-success-surface px-4 py-3 rounded-xl border border-success-ink/15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

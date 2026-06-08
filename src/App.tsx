@@ -1,9 +1,12 @@
 import { useState, useEffect } from "react";
 import { Vendor, Invoice, Registration, UserInfo } from "./types.js";
 import { DEFAULT_VIEW, canAccessView } from "./config/roles.js";
+import { useToast } from "./context/ToastContext.js";
+import { useConfirm } from "./context/ConfirmContext.js";
 import Header from "./components/Header.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import BottomNav from "./components/BottomNav.jsx";
+import ToastStack from "./components/ToastStack.jsx";
 import LoginView from "./components/LoginView.jsx";
 import DashboardView from "./components/DashboardView.jsx";
 import VendorDirectoryView from "./components/VendorDirectoryView.jsx";
@@ -14,6 +17,8 @@ import PaymentsView from "./components/PaymentsView.jsx";
 import VendorPortalView from "./components/VendorPortalView.jsx";
 
 export default function App() {
+  const { pushToast } = useToast();
+  const confirm = useConfirm();
   const [currentView, setCurrentView] = useState<string>("login");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -46,6 +51,7 @@ export default function App() {
       }
     } catch (err) {
       console.error("Failed to fetch data:", err);
+      pushToast("Could not refresh records. Check your connection.", "error");
     } finally {
       setLoading(false);
     }
@@ -58,6 +64,7 @@ export default function App() {
   const handleLoginSuccess = (loggedInUser: UserInfo) => {
     setUser(loggedInUser);
     setCurrentView(DEFAULT_VIEW[loggedInUser.role]);
+    pushToast(`Signed in as ${loggedInUser.name}`);
   };
 
   const handleLogout = () => {
@@ -83,15 +90,29 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(vendor),
     });
-    if (response.ok) fetchAllData();
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Vendor record updated");
+    } else {
+      pushToast("Vendor update failed", "error");
+    }
   };
 
   const handleDeleteVendor = async (id: string) => {
-    if (!confirm("Delete this vendor record?")) return;
+    const confirmed = await confirm({
+      title: "Delete vendor record",
+      message: "This vendor and their linked data will be removed. This cannot be undone.",
+      confirmLabel: "Delete vendor",
+      destructive: true,
+    });
+    if (!confirmed) return;
     const response = await fetch(`/api/vendors/${id}`, { method: "DELETE" });
     if (response.ok) {
-      fetchAllData();
+      await fetchAllData();
       setCurrentView("vendors");
+      pushToast("Vendor record deleted");
+    } else {
+      pushToast("Vendor delete failed", "error");
     }
   };
 
@@ -101,7 +122,12 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(invoicePayload),
     });
-    if (response.ok) fetchAllData();
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Invoice created");
+    } else {
+      pushToast("Invoice create failed", "error");
+    }
   };
 
   const handleUpdateInvoice = async (id: string, updates: Partial<Invoice>) => {
@@ -110,13 +136,29 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
-    if (response.ok) fetchAllData();
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Invoice updated");
+    } else {
+      pushToast("Invoice update failed", "error");
+    }
   };
 
   const handleDeleteInvoice = async (id: string) => {
-    if (!confirm("Delete this invoice?")) return;
+    const confirmed = await confirm({
+      title: "Delete invoice",
+      message: "This invoice will be permanently removed from payment records.",
+      confirmLabel: "Delete invoice",
+      destructive: true,
+    });
+    if (!confirmed) return;
     const response = await fetch(`/api/invoices/${id}`, { method: "DELETE" });
-    if (response.ok) fetchAllData();
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Invoice deleted");
+    } else {
+      pushToast("Invoice delete failed", "error");
+    }
   };
 
   const handleApproveRegistration = async (id: string) => {
@@ -125,7 +167,12 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    if (response.ok) fetchAllData();
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Registration approved");
+    } else {
+      pushToast("Approval failed", "error");
+    }
   };
 
   const handleRejectRegistration = async (id: string) => {
@@ -134,12 +181,18 @@ export default function App() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
     });
-    if (response.ok) fetchAllData();
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Registration rejected");
+    } else {
+      pushToast("Rejection failed", "error");
+    }
   };
 
   const handleRegistrationSuccess = () => {
     fetchAllData();
     setCurrentView("login");
+    pushToast("Registration submitted for review");
   };
 
   const linkedVendor = user?.vendorId
@@ -153,7 +206,7 @@ export default function App() {
   const showAuthView = !user && (currentView === "login" || currentView === "register");
 
   return (
-    <div className="min-h-screen bg-[#f7f9fb] text-[#191c1e] flex flex-col font-sans">
+    <div className="min-h-screen bg-app text-ink flex flex-col font-sans">
       <Header
         user={user}
         onLogout={handleLogout}
@@ -169,19 +222,22 @@ export default function App() {
             currentView={currentView === "vendor-detail" ? "vendors" : currentView}
             onNavigate={handleNavigateTo}
             isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
             user={user}
           />
         )}
 
         <main
-          className={`flex-1 transition-all duration-300 min-w-0 ${
+          id="main-content"
+          tabIndex={-1}
+          className={`flex-1 transition-all duration-300 min-w-0 outline-none ${
             user ? (sidebarOpen ? "md:pl-72" : "md:pl-20") : ""
           }`}
         >
           {loading ? (
-            <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4">
-              <div className="w-12 h-12 border-4 border-[#00687a] border-t-transparent rounded-full animate-spin" />
-              <p className="text-sm font-semibold text-[#45464d]">Loading VMS...</p>
+            <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4" role="status" aria-live="polite">
+              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true" />
+              <p className="text-sm font-semibold text-ink-muted">Loading records...</p>
             </div>
           ) : showAuthView ? (
             currentView === "register" ? (
@@ -258,6 +314,8 @@ export default function App() {
           user={user}
         />
       )}
+
+      <ToastStack />
     </div>
   );
 }

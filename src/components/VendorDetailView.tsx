@@ -1,6 +1,9 @@
 import { useState, FormEvent } from "react";
 import { ChevronRight, Phone, Mail, MapPin, Contact, Pencil, Trash2 } from "lucide-react";
 import { Vendor, Invoice } from "../types.js";
+import StatusBadge from "./StatusBadge.jsx";
+import Modal from "./Modal.jsx";
+import { useConfirm } from "../context/ConfirmContext.js";
 
 interface VendorDetailProps {
   vendor: Vendor;
@@ -17,6 +20,7 @@ export default function VendorDetailView({
   onUpdateVendor,
   onDeleteVendor,
 }: VendorDetailProps) {
+  const confirm = useConfirm();
   const [showEdit, setShowEdit] = useState(false);
   const [form, setForm] = useState(vendor);
 
@@ -26,146 +30,138 @@ export default function VendorDetailView({
     setShowEdit(false);
   };
 
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      title: "Delete vendor record",
+      message: `Delete ${vendor.name}? This cannot be undone.`,
+      confirmLabel: "Delete vendor",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    onDeleteVendor(vendor.id);
+  };
+
   return (
-    <div className="max-w-[1200px] mx-auto px-4 py-8 pb-24 md:pb-8">
-      <nav className="flex items-center gap-1.5 text-[11px] font-bold text-slate-500 uppercase mb-4">
-        <span onClick={onNavigateBack} className="cursor-pointer hover:text-blue-600">Vendors</span>
-        <ChevronRight className="w-3.5 h-3.5" />
-        <span className="text-blue-600">{vendor.name}</span>
+    <div className="vms-page">
+      <nav className="flex items-center gap-1.5 text-xs font-semibold text-ink-muted mb-4" aria-label="Breadcrumb">
+        <button type="button" onClick={onNavigateBack} className="hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary rounded">
+          Vendors
+        </button>
+        <ChevronRight className="w-3.5 h-3.5" aria-hidden="true" />
+        <span className="text-ink">{vendor.name}</span>
       </nav>
 
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-6 border-b border-slate-100">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8 pb-6 border-b border-border">
         <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center border border-slate-200">
-            <Contact className="w-8 h-8" />
+          <div className="w-16 h-16 rounded-2xl bg-primary-tint text-primary flex items-center justify-center border border-border font-bold text-lg">
+            {vendor.name.substring(0, 2).toUpperCase()}
           </div>
           <div>
-            <h2 className="font-display text-xl md:text-2xl font-extrabold text-slate-900">{vendor.name}</h2>
-            <span className="text-xs text-slate-500">{vendor.category}</span>
+            <h1 className="font-display text-xl md:text-2xl font-extrabold text-ink text-balance">{vendor.name}</h1>
+            <p className="text-sm text-ink-muted">{vendor.category}</p>
           </div>
         </div>
 
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={() => { setForm(vendor); setShowEdit(true); }}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-lg hover:bg-blue-700"
+            className="vms-btn-primary"
           >
-            <Pencil className="w-3.5 h-3.5" />
-            Edit
+            <Pencil className="w-4 h-4" aria-hidden="true" />
+            Edit vendor
           </button>
-          <button
-            onClick={() => onDeleteVendor(vendor.id)}
-            className="flex items-center gap-2 px-4 py-2 bg-rose-600 text-white font-bold text-xs rounded-lg hover:bg-rose-700"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
+          <button type="button" onClick={handleDelete} className="vms-btn-danger">
+            <Trash2 className="w-4 h-4" aria-hidden="true" />
+            Delete vendor
           </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-6">
-        <section className="bg-white border border-slate-200 p-6 rounded-2xl">
-          <h3 className="font-bold text-slate-900 mb-4">Contact Information</h3>
+        <section className="vms-panel p-6">
+          <h3 className="font-bold text-ink mb-4">Contact information</h3>
           <div className="space-y-4 text-sm">
-            <div className="flex items-start gap-3">
-              <Contact className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Account Manager</p>
-                <p className="font-semibold">{vendor.accountManager}</p>
+            {[
+              { icon: Contact, label: "Account manager", value: vendor.accountManager },
+              { icon: Mail, label: "Email", value: vendor.email },
+              { icon: Phone, label: "Phone", value: vendor.phone },
+              { icon: MapPin, label: "Address", value: vendor.address },
+            ].map(({ icon: Icon, label, value }) => (
+              <div key={label} className="flex items-start gap-3">
+                <Icon className="w-5 h-5 text-primary mt-0.5 shrink-0" aria-hidden="true" />
+                <div>
+                  <p className="vms-label">{label}</p>
+                  <p className="font-semibold text-ink mt-1">{value}</p>
+                </div>
               </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Mail className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Email</p>
-                <p className="font-semibold">{vendor.email}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <Phone className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Phone</p>
-                <p className="font-semibold">{vendor.phone}</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
-              <div>
-                <p className="text-[10px] font-bold text-slate-500 uppercase">Address</p>
-                <p className="font-semibold">{vendor.address}</p>
-              </div>
-            </div>
+            ))}
           </div>
         </section>
 
-        <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-          <div className="p-6 border-b border-slate-100">
-            <h3 className="font-bold text-slate-900">Invoices ({invoices.length})</h3>
+        <section className="vms-panel overflow-hidden">
+          <div className="vms-panel-header">
+            <h3 className="font-bold text-ink">Invoices ({invoices.length})</h3>
           </div>
-          <table className="w-full text-left">
-            <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase">
-              <tr>
-                <th className="px-6 py-3">Invoice ID</th>
-                <th className="px-6 py-3">Date</th>
-                <th className="px-6 py-3">Amount</th>
-                <th className="px-6 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {invoices.length > 0 ? (
-                invoices.map((inv) => (
-                  <tr key={inv.id}>
-                    <td className="px-6 py-4 text-xs font-bold">{inv.id}</td>
-                    <td className="px-6 py-4 text-xs">{inv.date}</td>
-                    <td className="px-6 py-4 text-xs font-bold">
-                      ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-slate-100">
-                        {inv.status}
-                      </span>
-                    </td>
+          {invoices.length > 0 ? (
+            <div className="vms-table-wrap">
+              <table className="vms-table min-w-[560px]">
+                <thead>
+                  <tr className="vms-table-head">
+                    <th scope="col" className="px-6 py-3">Invoice ID</th>
+                    <th scope="col" className="px-6 py-3">Date</th>
+                    <th scope="col" className="px-6 py-3">Amount</th>
+                    <th scope="col" className="px-6 py-3">Status</th>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
-                    No invoices for this vendor.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                </thead>
+                <tbody className="divide-y divide-border-subtle">
+                  {invoices.map((inv) => (
+                    <tr key={inv.id}>
+                      <td className="px-6 py-4 text-sm font-semibold text-ink">{inv.id}</td>
+                      <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-ink">
+                        ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={inv.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="vms-empty">No invoices for this vendor.</p>
+          )}
         </section>
       </div>
 
-      {showEdit && (
-        <div className="fixed inset-0 z-50 bg-slate-950/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
-            <h3 className="font-bold text-slate-900 mb-4">Edit Vendor</h3>
+      <Modal open={showEdit} onClose={() => setShowEdit(false)} titleId="edit-vendor-title" className="vms-panel p-6 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
+            <h2 id="edit-vendor-title" className="font-bold text-ink mb-4">Edit vendor</h2>
             <form onSubmit={handleEditSubmit} className="space-y-3">
               {(["name", "category", "accountManager", "email", "phone", "address"] as const).map((field) => (
                 <div key={field}>
-                  <label className="block text-xs font-bold text-slate-500 mb-1 capitalize">{field}</label>
+                  <label htmlFor={`edit-${field}`} className="vms-label mb-1 capitalize">
+                    {field === "accountManager" ? "Account manager" : field}
+                  </label>
                   <input
+                    id={`edit-${field}`}
                     value={form[field]}
                     onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                    className="vms-input"
                   />
                 </div>
               ))}
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)} className="px-4 py-2 border rounded-xl text-sm">
+                <button type="button" onClick={() => setShowEdit(false)} className="vms-btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold">
-                  Save Changes
+                <button type="submit" className="vms-btn-primary">
+                  Save changes
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

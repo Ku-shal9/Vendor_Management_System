@@ -1,4 +1,5 @@
 import { Vendor, Invoice } from "../types.js";
+import StatusBadge from "./StatusBadge.jsx";
 
 interface VendorPortalViewProps {
   vendor: Vendor | undefined;
@@ -9,89 +10,73 @@ export default function VendorPortalView({ vendor, invoices }: VendorPortalViewP
   if (!vendor) {
     return (
       <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
-        <h2 className="text-xl font-bold text-slate-900">No vendor profile linked</h2>
+        <h1 className="font-display text-xl font-bold text-ink mb-2">No vendor profile linked</h1>
+        <p className="text-sm text-ink-muted">
+          Your account is not linked to a vendor record. Contact CLance Solutions admin for access.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1000px] mx-auto px-4 py-8 pb-24">
-      <h2 className="font-display text-2xl font-extrabold text-slate-900 mb-8">
-        {vendor.name}
-      </h2>
+    <div className="max-w-[1000px] mx-auto px-4 py-8 pb-24 md:pb-12">
+      <h1 className="vms-title mb-8">{vendor.name}</h1>
 
-      <section className="bg-white border border-slate-200 rounded-2xl p-6 mb-8">
-        <h3 className="font-bold text-slate-900 mb-4">Company Profile</h3>
-        <dl className="space-y-2 text-sm">
-          <div>
-            <dt className="text-xs text-slate-500 font-bold uppercase">Category</dt>
-            <dd className="text-slate-900">{vendor.category}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500 font-bold uppercase">Contact</dt>
-            <dd className="text-slate-900">{vendor.accountManager}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500 font-bold uppercase">Email</dt>
-            <dd className="text-slate-900">{vendor.email}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500 font-bold uppercase">Phone</dt>
-            <dd className="text-slate-900">{vendor.phone}</dd>
-          </div>
-          <div>
-            <dt className="text-xs text-slate-500 font-bold uppercase">Address</dt>
-            <dd className="text-slate-900">{vendor.address}</dd>
+      <section className="vms-panel p-6 mb-8">
+        <h3 className="font-bold text-ink mb-4">Company profile</h3>
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          {[
+            { label: "Category", value: vendor.category },
+            { label: "Contact", value: vendor.accountManager },
+            { label: "Email", value: vendor.email },
+            { label: "Phone", value: vendor.phone },
+          ].map(({ label, value }) => (
+            <div key={label}>
+              <dt className="vms-label">{label}</dt>
+              <dd className="text-ink mt-1">{value}</dd>
+            </div>
+          ))}
+          <div className="sm:col-span-2">
+            <dt className="vms-label">Address</dt>
+            <dd className="text-ink mt-1">{vendor.address}</dd>
           </div>
         </dl>
       </section>
 
-      <section className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">My Invoices</h3>
+      <section className="vms-panel overflow-hidden">
+        <div className="vms-panel-header">
+          <h3 className="font-bold text-ink">My invoices</h3>
         </div>
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase">
-            <tr>
-              <th className="px-6 py-3">Invoice ID</th>
-              <th className="px-6 py-3">Date</th>
-              <th className="px-6 py-3">Amount</th>
-              <th className="px-6 py-3">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {invoices.length > 0 ? (
-              invoices.map((inv) => (
-                <tr key={inv.id}>
-                  <td className="px-6 py-4 text-xs font-bold">{inv.id}</td>
-                  <td className="px-6 py-4 text-xs">{inv.date}</td>
-                  <td className="px-6 py-4 text-xs font-bold">
-                    ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span
-                      className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                        inv.status === "Paid"
-                          ? "bg-emerald-50 text-emerald-700"
-                          : inv.status === "Overdue"
-                          ? "bg-rose-50 text-rose-700"
-                          : "bg-slate-100 text-slate-600"
-                      }`}
-                    >
-                      {inv.status}
-                    </span>
-                  </td>
+        {invoices.length > 0 ? (
+          <div className="vms-table-wrap">
+            <table className="vms-table min-w-[560px]">
+              <thead>
+                <tr className="vms-table-head">
+                  <th scope="col" className="px-6 py-3">Invoice ID</th>
+                  <th scope="col" className="px-6 py-3">Date</th>
+                  <th scope="col" className="px-6 py-3">Amount</th>
+                  <th scope="col" className="px-6 py-3">Status</th>
                 </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-sm text-slate-400">
-                  No invoices on record.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">{inv.id}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">
+                      ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="vms-empty">No invoices on record.</p>
+        )}
       </section>
     </div>
   );

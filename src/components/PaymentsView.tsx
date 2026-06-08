@@ -1,6 +1,9 @@
 import { useState, FormEvent } from "react";
 import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 import { Invoice, Vendor } from "../types.js";
+import StatusBadge from "./StatusBadge.jsx";
+import Modal from "./Modal.jsx";
+import { useConfirm } from "../context/ConfirmContext.js";
 
 interface PaymentsViewProps {
   invoices: Invoice[];
@@ -17,6 +20,7 @@ export default function PaymentsView({
   onUpdateInvoice,
   onDeleteInvoice,
 }: PaymentsViewProps) {
+  const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedVendorId, setSelectedVendorId] = useState(vendors[0]?.id || "");
@@ -49,6 +53,17 @@ export default function PaymentsView({
     setShowForm(true);
   };
 
+  const handleDelete = async (inv: Invoice) => {
+    const confirmed = await confirm({
+      title: "Delete invoice",
+      message: `Delete invoice ${inv.id} for ${inv.vendorName}? This cannot be undone.`,
+      confirmLabel: "Delete invoice",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    onDeleteInvoice(inv.id);
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const vendor = vendors.find((v) => v.id === selectedVendorId);
@@ -77,110 +92,115 @@ export default function PaymentsView({
   );
 
   return (
-    <div className="max-w-[1200px] mx-auto px-4 py-8 pb-24">
+    <div className="vms-page">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h2 className="font-display text-2xl font-extrabold text-slate-900">Invoices & Payments</h2>
-        <button
-          onClick={openCreate}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700"
-        >
-          <Plus className="w-4 h-4" />
-          Add Invoice
+        <h1 className="vms-title mb-0">Invoices & Payments</h1>
+        <button type="button" onClick={openCreate} disabled={vendors.length === 0} className="vms-btn-primary">
+          <Plus className="w-4 h-4" aria-hidden="true" />
+          Add invoice
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white border border-slate-200 p-6 rounded-2xl">
-          <p className="text-[10px] font-bold text-slate-500 uppercase">Outstanding Balance</p>
-          <h3 className="text-2xl font-extrabold text-slate-900 mt-2">
+      <div className="vms-summary-bar">
+        <span>
+          Outstanding:{" "}
+          <span className="font-semibold text-ink">
             ${totalPending.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-          </h3>
-        </div>
-        <div className="bg-white border border-slate-200 p-6 rounded-2xl">
-          <p className="text-[10px] font-bold text-slate-500 uppercase">Pending</p>
-          <h3 className="text-2xl font-extrabold text-slate-900 mt-2">{pendingCount}</h3>
-        </div>
-        <div className="bg-white border border-slate-200 p-6 rounded-2xl">
-          <p className="text-[10px] font-bold text-rose-600 uppercase">Overdue</p>
-          <h3 className="text-2xl font-extrabold text-rose-600 mt-2">{overdueCount}</h3>
-        </div>
+          </span>
+        </span>
+        <span aria-hidden="true" className="text-border">|</span>
+        <span>
+          Pending: <span className="font-semibold text-ink">{pendingCount}</span>
+        </span>
+        <span aria-hidden="true" className="text-border">|</span>
+        <span>
+          Overdue: <span className="font-semibold text-danger-ink">{overdueCount}</span>
+        </span>
       </div>
 
       <div className="relative mb-4 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" aria-hidden="true" />
         <input
-          type="text"
+          type="search"
+          aria-label="Search invoices"
           placeholder="Search invoices..."
           value={searchInvoices}
           onChange={(e) => setSearchInvoices(e.target.value)}
-          className="w-full pl-9 pr-4 py-2 border border-slate-200 rounded-xl text-sm"
+          className="vms-input pl-9"
         />
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden">
-        <table className="w-full text-left">
-          <thead className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase">
-            <tr>
-              <th className="p-4">Vendor / ID</th>
-              <th className="p-4">Date</th>
-              <th className="p-4">Amount</th>
-              <th className="p-4">Status</th>
-              <th className="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {filteredInvoices.map((inv) => (
-              <tr key={inv.id} className="hover:bg-slate-50">
-                <td className="p-4 text-xs">
-                  <div className="font-bold text-slate-900">{inv.vendorName}</div>
-                  <div className="text-[10px] text-slate-400">{inv.id}</div>
-                </td>
-                <td className="p-4 text-xs text-slate-600">{inv.date}</td>
-                <td className="p-4 text-xs font-bold">
-                  ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                </td>
-                <td className="p-4">
-                  <span
-                    className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                      inv.status === "Paid"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : inv.status === "Overdue"
-                        ? "bg-rose-50 text-rose-700"
-                        : "bg-slate-100 text-slate-600"
-                    }`}
-                  >
-                    {inv.status}
-                  </span>
-                </td>
-                <td className="p-4 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button onClick={() => openEdit(inv)} className="p-1.5 text-slate-500 hover:text-blue-600">
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    <button onClick={() => onDeleteInvoice(inv.id)} className="p-1.5 text-slate-500 hover:text-rose-600">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="vms-panel overflow-hidden">
+        {filteredInvoices.length === 0 ? (
+          <p className="vms-empty">
+            {searchInvoices ? "No invoices match your search." : "No invoices on record yet."}
+          </p>
+        ) : (
+          <div className="vms-table-wrap">
+            <table className="vms-table min-w-[720px]">
+              <thead>
+                <tr className="vms-table-head">
+                  <th scope="col" className="px-6 py-3">Vendor / ID</th>
+                  <th scope="col" className="px-6 py-3">Date</th>
+                  <th scope="col" className="px-6 py-3">Amount</th>
+                  <th scope="col" className="px-6 py-3">Status</th>
+                  <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {filteredInvoices.map((inv) => (
+                  <tr key={inv.id} className="vms-table-row">
+                    <td className="px-6 py-4 text-sm">
+                      <div className="font-semibold text-ink">{inv.vendorName}</div>
+                      <div className="text-xs text-ink-subtle">{inv.id}</div>
+                    </td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">
+                      ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => openEdit(inv)}
+                          aria-label={`Edit invoice ${inv.id}`}
+                          className="p-2 text-ink-subtle hover:text-primary rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(inv)}
+                          aria-label={`Delete invoice ${inv.id}`}
+                          className="p-2 text-ink-subtle hover:text-danger-ink rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-ink"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 bg-slate-950/40 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl">
-            <h3 className="font-bold text-slate-900 mb-4">
-              {editingId ? "Edit Invoice" : "New Invoice"}
-            </h3>
+      <Modal open={showForm} onClose={() => setShowForm(false)} titleId="invoice-form-title" className="vms-panel p-6 max-w-md w-full shadow-xl">
+            <h2 id="invoice-form-title" className="font-bold text-ink mb-4">
+              {editingId ? "Edit invoice" : "New invoice"}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Vendor</label>
+                <label htmlFor="invoice-vendor" className="vms-label mb-1">Vendor</label>
                 <select
+                  id="invoice-vendor"
                   value={selectedVendorId}
                   onChange={(e) => setSelectedVendorId(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                  className="vms-input"
                   required
                 >
                   {vendors.map((v) => (
@@ -189,33 +209,37 @@ export default function PaymentsView({
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-500 mb-1">Amount ($)</label>
+                <label htmlFor="invoice-amount" className="vms-label mb-1">Amount (USD)</label>
                 <input
+                  id="invoice-amount"
                   type="number"
                   step="0.01"
+                  min="0"
                   value={invoiceAmount}
                   onChange={(e) => setInvoiceAmount(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                  className="vms-input"
                   required
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Date</label>
+                  <label htmlFor="invoice-date" className="vms-label mb-1">Date</label>
                   <input
+                    id="invoice-date"
                     type="date"
                     value={invoiceDate}
                     onChange={(e) => setInvoiceDate(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                    className="vms-input"
                     required
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 mb-1">Status</label>
+                  <label htmlFor="invoice-status" className="vms-label mb-1">Status</label>
                   <select
+                    id="invoice-status"
                     value={invoiceStatus}
                     onChange={(e) => setInvoiceStatus(e.target.value as Invoice["status"])}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm"
+                    className="vms-input"
                   >
                     <option value="Pending">Pending</option>
                     <option value="Paid">Paid</option>
@@ -224,17 +248,15 @@ export default function PaymentsView({
                 </div>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border rounded-xl text-sm">
+                <button type="button" onClick={() => setShowForm(false)} className="vms-btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold">
-                  {editingId ? "Update" : "Create"}
+                <button type="submit" className="vms-btn-primary">
+                  {editingId ? "Save changes" : "Create invoice"}
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
     </div>
   );
 }

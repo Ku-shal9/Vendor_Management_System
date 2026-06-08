@@ -1,5 +1,6 @@
-import { Users, ShieldAlert } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { Vendor, Registration } from "../types.js";
+import { useConfirm } from "../context/ConfirmContext.js";
 
 interface DashboardViewProps {
   vendors: Vendor[];
@@ -16,77 +17,92 @@ export default function DashboardView({
   onRejectRegistration,
   onNavigate,
 }: DashboardViewProps) {
+  const confirm = useConfirm();
   const pending = registrations.filter((r) => r.status === "Pending");
 
+  const handleReject = async (id: string, companyName: string) => {
+    const confirmed = await confirm({
+      title: "Reject registration",
+      message: `Reject the registration for ${companyName}? The applicant will need to submit again.`,
+      confirmLabel: "Reject registration",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    onRejectRegistration(id);
+  };
+
   return (
-    <div className="max-w-[1200px] mx-auto px-4 py-8 pb-24 md:pb-12">
-      <h2 className="font-display text-2xl md:text-3xl font-extrabold text-slate-900 mb-8">
-        Admin Dashboard
-      </h2>
+    <div className="vms-page">
+      <h1 className="vms-title mb-6">Admin Dashboard</h1>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div
-          onClick={() => onNavigate("vendors")}
-          className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-blue-600 cursor-pointer"
-        >
-          <Users className="w-5 h-5 text-blue-600 mb-4" />
-          <div className="text-3xl font-extrabold text-slate-900">{vendors.length}</div>
-          <div className="text-xs font-bold text-slate-400 uppercase mt-1">Total Vendors</div>
-        </div>
-
-        <div
-          onClick={() => onNavigate("onboarding")}
-          className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:border-rose-500 cursor-pointer"
-        >
-          <ShieldAlert className="w-5 h-5 text-rose-600 mb-4" />
-          <div className="text-3xl font-extrabold text-slate-900">{pending.length}</div>
-          <div className="text-xs font-bold text-slate-400 uppercase mt-1">Pending Approvals</div>
-        </div>
+      <div className="vms-summary-bar">
+        <span>
+          <span className="font-semibold text-ink">{vendors.length}</span> vendors on record
+        </span>
+        <span aria-hidden="true" className="text-border">|</span>
+        <span>
+          <span className="font-semibold text-ink">{pending.length}</span> pending approval{pending.length === 1 ? "" : "s"}
+        </span>
+        {pending.length > 0 && (
+          <button type="button" onClick={() => onNavigate("onboarding")} className="vms-link inline-flex items-center gap-1">
+            Review onboarding queue
+            <ChevronRight className="w-4 h-4" aria-hidden="true" />
+          </button>
+        )}
       </div>
 
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="p-6 border-b border-slate-100">
-          <h3 className="font-bold text-slate-900">Pending Vendor Registrations</h3>
+      <div className="vms-panel overflow-hidden">
+        <div className="vms-panel-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+          <h3 className="font-bold text-ink">Pending vendor registrations</h3>
+          {pending.length > 0 && (
+            <button type="button" onClick={() => onNavigate("onboarding")} className="vms-link">
+              Open full onboarding view
+            </button>
+          )}
         </div>
 
         {pending.length === 0 ? (
-          <p className="px-6 py-8 text-sm text-slate-400 text-center">No pending registrations.</p>
+          <p className="vms-empty">No pending registrations. New vendor requests will appear here.</p>
         ) : (
-          <table className="w-full text-left">
-            <thead>
-              <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase">
-                <th className="px-6 py-3">Company</th>
-                <th className="px-6 py-3">Contact</th>
-                <th className="px-6 py-3">Email</th>
-                <th className="px-6 py-3">Registered</th>
-                <th className="px-6 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {pending.map((reg) => (
-                <tr key={reg.id} className="hover:bg-slate-50">
-                  <td className="px-6 py-4 text-xs font-bold text-slate-900">{reg.companyName}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600">{reg.contactName}</td>
-                  <td className="px-6 py-4 text-xs text-slate-600">{reg.contactEmail}</td>
-                  <td className="px-6 py-4 text-xs text-slate-500">{reg.registeredDate}</td>
-                  <td className="px-6 py-4 text-right space-x-2">
-                    <button
-                      onClick={() => onApproveRegistration(reg.id)}
-                      className="text-emerald-600 hover:text-emerald-700 text-xs font-bold"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => onRejectRegistration(reg.id)}
-                      className="text-rose-600 hover:text-rose-700 text-xs font-bold"
-                    >
-                      Reject
-                    </button>
-                  </td>
+          <div className="vms-table-wrap">
+            <table className="vms-table">
+              <thead>
+                <tr className="vms-table-head">
+                  <th scope="col" className="px-6 py-3">Company</th>
+                  <th scope="col" className="px-6 py-3">Contact</th>
+                  <th scope="col" className="px-6 py-3">Email</th>
+                  <th scope="col" className="px-6 py-3">Registered</th>
+                  <th scope="col" className="px-6 py-3 text-right">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {pending.map((reg) => (
+                  <tr key={reg.id} className="vms-table-row">
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">{reg.companyName}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">{reg.contactName}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">{reg.contactEmail}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">{reg.registeredDate}</td>
+                    <td className="px-6 py-4 text-right space-x-3">
+                      <button
+                        type="button"
+                        onClick={() => onApproveRegistration(reg.id)}
+                        className="text-sm font-semibold text-success-ink hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success-ink rounded"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleReject(reg.id, reg.companyName)}
+                        className="text-sm font-semibold text-danger-ink hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-ink rounded"
+                      >
+                        Reject
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
