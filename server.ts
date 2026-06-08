@@ -132,9 +132,47 @@ app.post("/api/registrations", async (req, res) => {
     address: req.body.address || "Not provided",
     registeredDate: formatDate(),
     status: "Pending",
+    documents: req.body.documents || {},
   };
   await getDb().collection("registrations").insertOne(newReg);
   res.status(201).json({ registration: newReg });
+});
+
+// Purchases
+app.get("/api/purchases", async (_req, res) => {
+  const purchases = await getDb().collection("purchases").find().sort({ date: -1 }).toArray();
+  res.json({ purchases });
+});
+
+app.post("/api/purchases", async (req, res) => {
+  const count = await getDb().collection("purchases").countDocuments();
+  const newPurchase = {
+    id: `PRQ-${String(count + 1).padStart(3, "0")}`,
+    vendorId: req.body.vendorId,
+    vendorName: req.body.vendorName,
+    date: req.body.date || new Date().toISOString().split("T")[0],
+    items: req.body.items || [],
+    totalAmount: parseFloat(req.body.totalAmount || 0),
+    status: req.body.status || "Pending",
+  };
+  await getDb().collection("purchases").insertOne(newPurchase);
+  res.status(201).json({ purchase: newPurchase });
+});
+
+app.put("/api/purchases/:id", async (req, res) => {
+  const result = await getDb().collection("purchases").findOneAndUpdate(
+    { id: req.params.id },
+    { $set: req.body },
+    { returnDocument: "after" }
+  );
+  if (!result) return res.status(404).json({ error: "Purchase request not found" });
+  res.json({ purchase: result });
+});
+
+app.delete("/api/purchases/:id", async (req, res) => {
+  const result = await getDb().collection("purchases").deleteOne({ id: req.params.id });
+  if (result.deletedCount === 0) return res.status(404).json({ error: "Purchase request not found" });
+  res.json({ success: true });
 });
 
 app.post("/api/registrations/approve", async (req, res) => {

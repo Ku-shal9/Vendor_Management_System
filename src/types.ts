@@ -1,5 +1,11 @@
 export type UserRole = 'Admin' | 'FinancialManager' | 'Vendor';
 
+export interface VendorItem {
+  name: string;
+  price: number;
+  description?: string;
+}
+
 export interface Vendor {
   id: string;
   name: string;
@@ -8,6 +14,7 @@ export interface Vendor {
   email: string;
   phone: string;
   address: string;
+  items?: VendorItem[];
 }
 
 export interface Invoice {
@@ -29,6 +36,24 @@ export interface Registration {
   address: string;
   registeredDate: string;
   status: 'Pending' | 'Approved' | 'Rejected';
+  documents?: {
+    license?: string;
+    w9?: string;
+  };
+}
+
+export interface PurchaseRequest {
+  id: string;
+  vendorId: string;
+  vendorName: string;
+  date: string;
+  items: Array<{
+    name: string;
+    price: number;
+    quantity: number;
+  }>;
+  totalAmount: number;
+  status: 'Pending' | 'Approved' | 'Rejected' | 'Delivered';
 }
 
 export interface UserInfo {

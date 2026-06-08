@@ -13,8 +13,8 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [licenseUploaded, setLicenseUploaded] = useState(false);
-  const [w9Uploaded, setW9Uploaded] = useState(false);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [w9File, setW9File] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [onboarded, setOnboarded] = useState(false);
   const [formError, setFormError] = useState("");
@@ -46,9 +46,15 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
     setStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev));
   };
 
+  const handlePhoneChange = (val: string) => {
+    // Restrict to standard phone characters: digits, spaces, parents, hyphens, and +
+    const sanitized = val.replace(/[^0-9+\s()-.]/g, "");
+    setPhone(sanitized);
+  };
+
   const handleFormSubmit = async () => {
     setFormError("");
-    if (!licenseUploaded || !w9Uploaded) {
+    if (!licenseFile || !w9File) {
       setFormError("Upload both the business license and W-9 before submitting.");
       return;
     }
@@ -66,6 +72,10 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
           contactEmail: email,
           contactPhone: phone,
           address: address || "Not provided",
+          documents: {
+            license: licenseFile.name,
+            w9: w9File.name,
+          }
         }),
       });
 
@@ -155,7 +165,6 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
                     id="comp-legal-name"
                     type="text"
                     required
-                    placeholder="e.g. Nexus Tech Systems"
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="vms-input"
@@ -214,7 +223,7 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
                       id="acct-manager-phone"
                       type="tel"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => handlePhoneChange(e.target.value)}
                       className="vms-input"
                     />
                   </div>
@@ -244,30 +253,113 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
                   Upload PDF copies of your business license and W-9. These are required for vendor approval.
                 </p>
 
-                {[
-                  { uploaded: licenseUploaded, setUploaded: setLicenseUploaded, title: "Business license *" },
-                  { uploaded: w9Uploaded, setUploaded: setW9Uploaded, title: "Tax documents / W-9 *" },
-                ].map(({ uploaded, setUploaded, title }) => (
-                  <button
-                    key={title}
-                    type="button"
-                    onClick={() => setUploaded(true)}
-                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                      uploaded ? "border-success-ink/30 bg-success-surface" : "border-border hover:border-primary/40 hover:bg-surface-muted"
+                {/* Business License Upload */}
+                <div>
+                  <input
+                    type="file"
+                    id="license-file-input"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setLicenseFile(file);
+                    }}
+                  />
+                  <div
+                    onClick={() => document.getElementById("license-file-input")?.click()}
+                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                      licenseFile ? "border-success-ink/30 bg-success-surface" : "border-border hover:border-primary/40 hover:bg-surface-muted"
                     }`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        document.getElementById("license-file-input")?.click();
+                      }
+                    }}
                   >
                     <div className="flex items-center gap-4">
-                      <FileText className={`w-5 h-5 ${uploaded ? "text-success-ink" : "text-ink-subtle"}`} aria-hidden="true" />
+                      <FileText className={`w-5 h-5 ${licenseFile ? "text-success-ink" : "text-ink-subtle"}`} aria-hidden="true" />
                       <div>
-                        <p className="text-sm font-semibold text-ink">{title}</p>
+                        <p className="text-sm font-semibold text-ink">Business license *</p>
                         <p className="text-xs text-ink-muted">
-                          {uploaded ? "Document marked ready" : "Select or upload PDF"}
+                          {licenseFile ? licenseFile.name : "Select or upload PDF/Image"}
                         </p>
                       </div>
                     </div>
-                    <Upload className={`w-4 h-4 ${uploaded ? "text-success-ink" : "text-ink-subtle"}`} aria-hidden="true" />
-                  </button>
-                ))}
+                    <div className="flex items-center gap-2">
+                      {licenseFile && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setLicenseFile(null);
+                            const input = document.getElementById("license-file-input") as HTMLInputElement;
+                            if (input) input.value = "";
+                          }}
+                          className="p-1 hover:bg-black/10 rounded text-xs font-semibold text-danger-ink"
+                        >
+                          Remove
+                        </button>
+                      )}
+                      <Upload className={`w-4 h-4 ${licenseFile ? "text-success-ink" : "text-ink-subtle"}`} aria-hidden="true" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* W-9 Upload */}
+                <div>
+                  <input
+                    type="file"
+                    id="w9-file-input"
+                    accept=".pdf,image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setW9File(file);
+                    }}
+                  />
+                  <div
+                    onClick={() => document.getElementById("w9-file-input")?.click()}
+                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
+                      w9File ? "border-success-ink/30 bg-success-surface" : "border-border hover:border-primary/40 hover:bg-surface-muted"
+                    }`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        document.getElementById("w9-file-input")?.click();
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-4">
+                      <FileText className={`w-5 h-5 ${w9File ? "text-success-ink" : "text-ink-subtle"}`} aria-hidden="true" />
+                      <div>
+                        <p className="text-sm font-semibold text-ink">Tax documents / W-9 *</p>
+                        <p className="text-xs text-ink-muted">
+                          {w9File ? w9File.name : "Select or upload PDF/Image"}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {w9File && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setW9File(null);
+                            const input = document.getElementById("w9-file-input") as HTMLInputElement;
+                            if (input) input.value = "";
+                          }}
+                          className="p-1 hover:bg-black/10 rounded text-xs font-semibold text-danger-ink"
+                        >
+                          Remove
+                        </button>
+                      )}
+                      <Upload className={`w-4 h-4 ${w9File ? "text-success-ink" : "text-ink-subtle"}`} aria-hidden="true" />
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
           )}

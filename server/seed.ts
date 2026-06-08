@@ -1,13 +1,16 @@
 import { Db } from "mongodb";
 
 export async function seedDatabase(db: Db): Promise<void> {
-  const vendors = db.collection("vendors");
-  const count = await vendors.countDocuments();
-  if (count > 0) return;
-
   console.log("[MongoDB] Seeding initial data...");
 
-  await vendors.insertMany([
+  // Drop or clear collections to ensure fresh schema and test users are always loaded
+  await db.collection("vendors").deleteMany({});
+  await db.collection("invoices").deleteMany({});
+  await db.collection("registrations").deleteMany({});
+  await db.collection("users").deleteMany({});
+  await db.collection("purchases").deleteMany({});
+
+  await db.collection("vendors").insertMany([
     {
       id: "techflow",
       name: "TechFlow Solutions Inc.",
@@ -16,6 +19,11 @@ export async function seedDatabase(db: Db): Promise<void> {
       email: "sarah.m@techflow.com",
       phone: "+1 (555) 012-3456",
       address: "450 Innovation Way, Austin, TX 78701",
+      items: [
+        { name: "Cloud Migrations Package", price: 2499.00, description: "Full stack lift-and-shift to AWS/GCP" },
+        { name: "Managed Kubernetes Support (Monthly)", price: 850.00, description: "24/7 cluster monitoring and updates" },
+        { name: "Security Compliance Audit", price: 1200.00, description: "Detailed report on ISO27001/SOC2 compliance gaps" }
+      ]
     },
     {
       id: "aws",
@@ -25,6 +33,11 @@ export async function seedDatabase(db: Db): Promise<void> {
       email: "j.davidson@aws.amazon.com",
       phone: "+1 (800) 280-4852",
       address: "410 Terry Ave N, Seattle, WA 98109",
+      items: [
+        { name: "EC2 Reserved Instance (t3.xlarge)", price: 85.00, description: "1-year upfront reserved compute instance" },
+        { name: "Enterprise Support Subscription", price: 1500.00, description: "Direct access to AWS solutions architects" },
+        { name: "Amazon S3 Bulk Storage (10TB)", price: 220.00, description: "S3 Standard object storage tier" }
+      ]
     },
     {
       id: "dishome",
@@ -34,6 +47,11 @@ export async function seedDatabase(db: Db): Promise<void> {
       email: "sujan.c@dishome.com.np",
       phone: "+977 (1) 421-5588",
       address: "Bakhundole, Lalitpur, Nepal",
+      items: [
+        { name: "Corporate Direct Fiber 200Mbps", price: 180.00, description: "Dedicated leased line with 99.9% SLA" },
+        { name: "Static IP Pool (/28 subnet)", price: 25.00, description: "13 usable static public IP addresses" },
+        { name: "NetTV Commercial Connection", price: 12.00, description: "IPTV stream package for lobby displays" }
+      ]
     },
   ]);
 
@@ -75,6 +93,10 @@ export async function seedDatabase(db: Db): Promise<void> {
       address: "100 Tech Park, San Jose, CA",
       registeredDate: "Oct 24, 2023",
       status: "Pending",
+      documents: {
+        license: "Nexus_Business_License.pdf",
+        w9: "Nexus_W9_2023.pdf"
+      }
     },
   ]);
 
@@ -94,6 +116,13 @@ export async function seedDatabase(db: Db): Promise<void> {
       department: "Finance",
     },
     {
+      email: "finance2@clance.com",
+      password: "financepassword",
+      name: "Alex Rivera",
+      role: "FinancialManager",
+      department: "Finance",
+    },
+    {
       email: "partner@techflow.com",
       password: "vendor123",
       name: "Sarah J. Montgomery",
@@ -101,6 +130,40 @@ export async function seedDatabase(db: Db): Promise<void> {
       department: "TechFlow Solutions",
       vendorId: "techflow",
     },
+    {
+      email: "supplier@dishome.com.np",
+      password: "vendorpassword",
+      name: "Sujan Chhetri",
+      role: "Vendor",
+      department: "Dishome Fibernet",
+      vendorId: "dishome",
+    },
+  ]);
+
+  await db.collection("purchases").insertMany([
+    {
+      id: "PRQ-001",
+      vendorId: "techflow",
+      vendorName: "TechFlow Solutions Inc.",
+      date: "2023-11-01",
+      items: [
+        { name: "Managed Kubernetes Support (Monthly)", price: 850.00, quantity: 2 }
+      ],
+      totalAmount: 1700.00,
+      status: "Approved"
+    },
+    {
+      id: "PRQ-002",
+      vendorId: "dishome",
+      vendorName: "Dishome Fibernet",
+      date: "2023-11-05",
+      items: [
+        { name: "Corporate Direct Fiber 200Mbps", price: 180.00, quantity: 1 },
+        { name: "Static IP Pool (/28 subnet)", price: 25.00, quantity: 2 }
+      ],
+      totalAmount: 230.00,
+      status: "Pending"
+    }
   ]);
 
   console.log("[MongoDB] Seed complete.");

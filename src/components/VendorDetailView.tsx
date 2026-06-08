@@ -78,7 +78,7 @@ export default function VendorDetailView({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <section className="vms-panel p-6">
           <h3 className="font-bold text-ink mb-4">Contact information</h3>
           <div className="space-y-4 text-sm">
@@ -99,68 +99,94 @@ export default function VendorDetailView({
           </div>
         </section>
 
-        <section className="vms-panel overflow-hidden">
-          <div className="vms-panel-header">
-            <h3 className="font-bold text-ink">Invoices ({invoices.length})</h3>
-          </div>
-          {invoices.length > 0 ? (
-            <div className="vms-table-wrap">
-              <table className="vms-table min-w-[560px]">
-                <thead>
-                  <tr className="vms-table-head">
-                    <th scope="col" className="px-6 py-3">Invoice ID</th>
-                    <th scope="col" className="px-6 py-3">Date</th>
-                    <th scope="col" className="px-6 py-3">Amount</th>
-                    <th scope="col" className="px-6 py-3">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border-subtle">
-                  {invoices.map((inv) => (
-                    <tr key={inv.id}>
-                      <td className="px-6 py-4 text-sm font-semibold text-ink">{inv.id}</td>
-                      <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
-                      <td className="px-6 py-4 text-sm font-semibold text-ink">
-                        ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={inv.status} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+        <section className="vms-panel p-6">
+          <h3 className="font-bold text-ink mb-4">Product Catalog</h3>
+          {!vendor.items || vendor.items.length === 0 ? (
+            <p className="text-sm text-ink-muted italic py-2">No catalog items listed.</p>
           ) : (
-            <p className="vms-empty">No invoices for this vendor.</p>
+            <ul className="space-y-3 divide-y divide-border-subtle max-h-[200px] overflow-y-auto pr-1">
+              {vendor.items.map((item, index) => (
+                <li key={index} className={`text-sm ${index > 0 ? "pt-3" : ""}`}>
+                  <div className="flex justify-between items-start gap-2">
+                    <span className="font-semibold text-ink">{item.name}</span>
+                    <span className="font-bold text-primary shrink-0">${item.price.toFixed(2)}</span>
+                  </div>
+                  {item.description && <p className="text-xs text-ink-subtle mt-0.5">{item.description}</p>}
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       </div>
 
+      <section className="vms-panel overflow-hidden mb-6">
+        <div className="vms-panel-header">
+          <h3 className="font-bold text-ink">Invoices ({invoices.length})</h3>
+        </div>
+        {invoices.length > 0 ? (
+          <div className="vms-table-wrap">
+            <table className="vms-table min-w-[560px]">
+              <thead>
+                <tr className="vms-table-head">
+                  <th scope="col" className="px-6 py-3">Invoice ID</th>
+                  <th scope="col" className="px-6 py-3">Date</th>
+                  <th scope="col" className="px-6 py-3">Amount</th>
+                  <th scope="col" className="px-6 py-3">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-subtle">
+                {invoices.map((inv) => (
+                  <tr key={inv.id}>
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">{inv.id}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">
+                      ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <StatusBadge status={inv.status} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="vms-empty">No invoices for this vendor.</p>
+        )}
+      </section>
+
       <Modal open={showEdit} onClose={() => setShowEdit(false)} titleId="edit-vendor-title" className="vms-panel p-6 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 id="edit-vendor-title" className="font-bold text-ink mb-4">Edit vendor</h2>
-            <form onSubmit={handleEditSubmit} className="space-y-3">
-              {(["name", "category", "accountManager", "email", "phone", "address"] as const).map((field) => (
-                <div key={field}>
-                  <label htmlFor={`edit-${field}`} className="vms-label mb-1 capitalize">
-                    {field === "accountManager" ? "Account manager" : field}
-                  </label>
-                  <input
-                    id={`edit-${field}`}
-                    value={form[field]}
-                    onChange={(e) => setForm({ ...form, [field]: e.target.value })}
-                    className="vms-input"
-                  />
-                </div>
-              ))}
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowEdit(false)} className="vms-btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="vms-btn-primary">
-                  Save changes
-                </button>
-              </div>
-            </form>
+        <h2 id="edit-vendor-title" className="font-bold text-ink mb-4">Edit vendor</h2>
+        <form onSubmit={handleEditSubmit} className="space-y-3">
+          {(["name", "category", "accountManager", "email", "phone", "address"] as const).map((field) => (
+            <div key={field}>
+              <label htmlFor={`edit-${field}`} className="vms-label mb-1 capitalize">
+                {field === "accountManager" ? "Account manager" : field}
+              </label>
+              <input
+                id={`edit-${field}`}
+                value={form[field]}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (field === "phone") {
+                    setForm({ ...form, phone: val.replace(/[^0-9+\s()-.]/g, "") });
+                  } else {
+                    setForm({ ...form, [field]: val });
+                  }
+                }}
+                className="vms-input"
+              />
+            </div>
+          ))}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setShowEdit(false)} className="vms-btn-secondary">
+              Cancel
+            </button>
+            <button type="submit" className="vms-btn-primary">
+              Save changes
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

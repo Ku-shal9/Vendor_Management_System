@@ -44,7 +44,6 @@ export default function VendorDirectoryView({
           <input
             type="search"
             aria-label="Search vendors"
-            placeholder="Search vendors..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="vms-input pl-12 py-3"

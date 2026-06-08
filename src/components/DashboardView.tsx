@@ -78,7 +78,15 @@ export default function DashboardView({
               <tbody className="divide-y divide-border-subtle">
                 {pending.map((reg) => (
                   <tr key={reg.id} className="vms-table-row">
-                    <td className="px-6 py-4 text-sm font-semibold text-ink">{reg.companyName}</td>
+                    <td className="px-6 py-4 text-sm font-semibold text-ink">
+                      <div>{reg.companyName}</div>
+                      {reg.documents && (reg.documents.license || reg.documents.w9) && (
+                        <div className="text-[11px] text-ink-subtle mt-0.5 font-normal flex items-center gap-1.5">
+                          {reg.documents.license && <span title={reg.documents.license}>📄 License</span>}
+                          {reg.documents.w9 && <span title={reg.documents.w9}>📄 W-9</span>}
+                        </div>
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-sm text-ink-muted">{reg.contactName}</td>
                     <td className="px-6 py-4 text-sm text-ink-muted">{reg.contactEmail}</td>
                     <td className="px-6 py-4 text-sm text-ink-muted">{reg.registeredDate}</td>

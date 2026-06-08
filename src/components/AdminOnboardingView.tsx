@@ -63,6 +63,25 @@ export default function AdminOnboardingView({
                       <dd className="text-ink mt-1">{reg.registeredDate}</dd>
                     </div>
                   </dl>
+                  {reg.documents && (reg.documents.license || reg.documents.w9) && (
+                    <div className="mt-4 pt-4 border-t border-border-subtle">
+                      <dt className="vms-label mb-2">Uploaded Documents</dt>
+                      <dd className="flex flex-wrap gap-3">
+                        {reg.documents.license && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-muted border border-border rounded-lg text-xs font-semibold text-ink">
+                            <span className="text-ink-muted">License:</span>
+                            <span className="truncate max-w-[200px]" title={reg.documents.license}>{reg.documents.license}</span>
+                          </div>
+                        )}
+                        {reg.documents.w9 && (
+                          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-surface-muted border border-border rounded-lg text-xs font-semibold text-ink">
+                            <span className="text-ink-muted">W-9:</span>
+                            <span className="truncate max-w-[200px]" title={reg.documents.w9}>{reg.documents.w9}</span>
+                          </div>
+                        )}
+                      </dd>
+                    </div>
+                  )}
                 </div>
                 <div className="flex shrink-0 gap-2 sm:flex-col sm:items-stretch">
                   <button type="button" onClick={() => onApprove(reg.id)} className="vms-btn-primary">

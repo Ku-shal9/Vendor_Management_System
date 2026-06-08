@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Vendor, Invoice, Registration, UserInfo } from "./types.js";
+import { Vendor, Invoice, Registration, UserInfo, PurchaseRequest } from "./types.js";
 import { DEFAULT_VIEW, canAccessView } from "./config/roles.js";
 import { useToast } from "./context/ToastContext.js";
 import { useConfirm } from "./context/ConfirmContext.js";
@@ -26,15 +26,17 @@ export default function App() {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
+  const [purchases, setPurchases] = useState<PurchaseRequest[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchAllData = async () => {
     try {
-      const [vRes, pRes, rRes] = await Promise.all([
+      const [vRes, pRes, rRes, purRes] = await Promise.all([
         fetch("/api/vendors"),
         fetch("/api/payments"),
         fetch("/api/registrations"),
+        fetch("/api/purchases"),
       ]);
 
       if (vRes.ok) {
@@ -48,6 +50,10 @@ export default function App() {
       if (rRes.ok) {
         const rData = await rRes.json();
         setRegistrations(rData.registrations || []);
+      }
+      if (purRes.ok) {
+        const purData = await purRes.json();
+        setPurchases(purData.purchases || []);
       }
     } catch (err) {
       console.error("Failed to fetch data:", err);
@@ -195,6 +201,44 @@ export default function App() {
     pushToast("Registration submitted for review");
   };
 
+  const handleAddPurchase = async (purchasePayload: Partial<PurchaseRequest>) => {
+    const response = await fetch("/api/purchases", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(purchasePayload),
+    });
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Purchase request created");
+    } else {
+      pushToast("Purchase request creation failed", "error");
+    }
+  };
+
+  const handleUpdatePurchase = async (id: string, updates: Partial<PurchaseRequest>) => {
+    const response = await fetch(`/api/purchases/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Purchase request updated");
+    } else {
+      pushToast("Purchase request update failed", "error");
+    }
+  };
+
+  const handleDeletePurchase = async (id: string) => {
+    const response = await fetch(`/api/purchases/${id}`, { method: "DELETE" });
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Purchase request deleted");
+    } else {
+      pushToast("Purchase request deletion failed", "error");
+    }
+  };
+
   const linkedVendor = user?.vendorId
     ? vendors.find((v) => v.id === user.vendorId)
     : undefined;
@@ -290,9 +334,13 @@ export default function App() {
                 <PaymentsView
                   invoices={invoices}
                   vendors={vendors}
+                  purchases={purchases}
                   onAddInvoice={handleAddInvoice}
                   onUpdateInvoice={handleUpdateInvoice}
                   onDeleteInvoice={handleDeleteInvoice}
+                  onAddPurchase={handleAddPurchase}
+                  onUpdatePurchase={handleUpdatePurchase}
+                  onDeletePurchase={handleDeletePurchase}
                 />
               )}
 
@@ -300,6 +348,9 @@ export default function App() {
                 <VendorPortalView
                   vendor={linkedVendor}
                   invoices={vendorInvoices}
+                  purchases={purchases}
+                  onUpdateVendor={handleUpdateVendor}
+                  onUpdatePurchase={handleUpdatePurchase}
                 />
               )}
             </>

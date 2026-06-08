@@ -8,6 +8,8 @@ interface ThemeContextValue {
   mode: ThemeMode;
   setMode: (mode: ThemeMode) => void;
   resolved: "light" | "dark";
+  alwaysShowScrollbar: boolean;
+  setAlwaysShowScrollbar: (show: boolean) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
@@ -35,6 +37,14 @@ function readStoredMode(): ThemeMode {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<ThemeMode>(readStoredMode);
   const [resolved, setResolved] = useState<"light" | "dark">(() => resolveTheme(readStoredMode()));
+  const [alwaysShowScrollbar, setAlwaysShowScrollbarState] = useState<boolean>(() => {
+    return localStorage.getItem("vms-always-scrollbar") === "true";
+  });
+
+  const setAlwaysShowScrollbar = (show: boolean) => {
+    setAlwaysShowScrollbarState(show);
+    localStorage.setItem("vms-always-scrollbar", String(show));
+  };
 
   const setMode = (next: ThemeMode) => {
     setModeState(next);
@@ -59,8 +69,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", onChange);
   }, [mode]);
 
+  useEffect(() => {
+    document.documentElement.classList.toggle("vms-always-scrollbar", alwaysShowScrollbar);
+  }, [alwaysShowScrollbar]);
+
   return (
-    <ThemeContext.Provider value={{ mode, setMode, resolved }}>
+    <ThemeContext.Provider value={{ mode, setMode, resolved, alwaysShowScrollbar, setAlwaysShowScrollbar }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -77,4 +91,7 @@ export function useTheme() {
 export function initThemeBeforeRender() {
   const mode = readStoredMode();
   applyTheme(resolveTheme(mode));
+  
+  const alwaysShow = localStorage.getItem("vms-always-scrollbar") === "true";
+  document.documentElement.classList.toggle("vms-always-scrollbar", alwaysShow);
 }
