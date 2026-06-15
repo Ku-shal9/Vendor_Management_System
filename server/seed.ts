@@ -7,6 +7,7 @@ export async function seedDatabase(db: Db): Promise<void> {
   // Drop or clear collections to ensure fresh schema and test users are always loaded
   await db.collection("vendors").deleteMany({});
   await db.collection("invoices").deleteMany({});
+  await db.collection("bills").deleteMany({});
   await db.collection("registrations").deleteMany({});
   await db.collection("users").deleteMany({});
   await db.collection("purchases").deleteMany({});

@@ -11,10 +11,18 @@ import {
 import {
   Vendor,
   Invoice,
+  Bill,
+  PurchaseRequest,
   Registration,
   Notification,
   NotificationType,
 } from "./src/types.js";
+import {
+  buildBillFromPurchase,
+  buildBillPaidUpdate,
+  buildInvoiceFromBill,
+} from "./server/billing.js";
+import { simulateStripePayment } from "./server/stripe.js";
 import {
   generateOTP,
   sendCredentialsEmail,
@@ -183,6 +191,69 @@ app.delete("/api/invoices/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// Bills
+app.get("/api/bills", async (_req, res) => {
+  const bills = await getDb()
+    .collection<Bill>("bills")
+    .find()
+    .sort({ date: -1 })
+    .toArray();
+  res.json({ bills });
+});
+
+app.post("/api/bills/:id/pay", async (req, res) => {
+  const bill = await getDb()
+    .collection<Bill>("bills")
+    .findOne({ id: req.params.id });
+
+  if (!bill) return res.status(404).json({ error: "Bill not found" });
+  if (bill.status === "Paid") {
+    return res.status(400).json({ error: "Bill already paid" });
+  }
+
+  const payment = await simulateStripePayment(bill.amount);
+  if (!payment.success) {
+    return res.status(402).json({ error: payment.error || "Payment failed" });
+  }
+
+  const invoiceId = `INV-${Date.now().toString().slice(-6)}`;
+  const invoice = buildInvoiceFromBill(bill, invoiceId);
+  const billUpdate = buildBillPaidUpdate(
+    bill,
+    invoiceId,
+    payment.paymentIntentId,
+  );
+
+  await getDb().collection("invoices").insertOne(invoice);
+  await getDb()
+    .collection("bills")
+    .updateOne({ id: bill.id }, { $set: billUpdate });
+
+  const vendorUser = await getDb()
+    .collection("users")
+    .findOne({ vendorId: bill.vendorId });
+  if (vendorUser) {
+    const notification: Notification = {
+      id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
+      userId: vendorUser.email,
+      type: "payment_completed",
+      message: `Payment of $${bill.amount.toFixed(2)} received for ${bill.vendorName}. Invoice #${invoiceId} issued.`,
+      read: false,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        vendorName: bill.vendorName,
+        invoiceId,
+        invoiceAmount: bill.amount,
+        billId: bill.id,
+        purchaseRequestId: bill.purchaseRequestId,
+      },
+    };
+    await getDb().collection("notifications").insertOne(notification);
+  }
+
+  res.json({ bill: { ...bill, ...billUpdate }, invoice, payment });
+});
+
 // Registrations
 app.get("/api/registrations", async (_req, res) => {
   const registrations = await getDb()
@@ -336,7 +407,7 @@ app.post("/api/purchases", async (req, res) => {
 
 app.put("/api/purchases/:id", async (req, res) => {
   const existing = await getDb()
-    .collection("purchases")
+    .collection<PurchaseRequest>("purchases")
     .findOne({ id: req.params.id });
   const result = await getDb()
     .collection("purchases")
@@ -365,20 +436,24 @@ app.put("/api/purchases/:id", async (req, res) => {
         },
       };
       await getDb().collection("notifications").insertOne(notification);
-    } else if (status === "Delivered" && existing.createdBy) {
-      const notification: Notification = {
-        id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
-        userId: existing.createdBy,
-        type: "purchase_request_delivered",
-        message: `Purchase request #${existing.id} delivered by ${existing.vendorName}`,
-        read: false,
-        createdAt: new Date().toISOString(),
-        metadata: {
-          vendorName: existing.vendorName,
-          purchaseRequestId: existing.id,
-        },
-      };
-      await getDb().collection("notifications").insertOne(notification);
+    } else if (status === "Delivered") {
+      if (existing.createdBy) {
+        const notification: Notification = {
+          id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
+          userId: existing.createdBy,
+          type: "purchase_request_delivered",
+          message: `Purchase request #${existing.id} delivered by ${existing.vendorName}`,
+          read: false,
+          createdAt: new Date().toISOString(),
+          metadata: {
+            vendorName: existing.vendorName,
+            purchaseRequestId: existing.id,
+          },
+        };
+        await getDb().collection("notifications").insertOne(notification);
+      }
+
+      await createBillForDeliveredPurchase(existing);
     }
   }
 
@@ -688,6 +763,34 @@ app.post("/api/auth/reset-password", async (req, res) => {
 });
 
 // Helper to create notifications for user roles
+async function createBillForDeliveredPurchase(purchase: PurchaseRequest) {
+  const existingBill = await getDb()
+    .collection<Bill>("bills")
+    .findOne({ purchaseRequestId: purchase.id });
+  if (existingBill) return existingBill;
+
+  const count = await getDb().collection("bills").countDocuments();
+  const bill = buildBillFromPurchase(
+    purchase,
+    `BILL-${String(count + 1).padStart(3, "0")}`,
+  );
+  await getDb().collection("bills").insertOne(bill);
+
+  await createNotificationsForRole(
+    "FinancialManager",
+    "bill_created",
+    `Bill #${bill.id} due for ${bill.vendorName}: $${bill.amount.toFixed(2)}`,
+    {
+      vendorName: bill.vendorName,
+      billId: bill.id,
+      invoiceAmount: bill.amount,
+      purchaseRequestId: bill.purchaseRequestId,
+    },
+  );
+
+  return bill;
+}
+
 async function createNotificationsForRole(
   role: "Admin" | "FinancialManager" | "Vendor",
   type: NotificationType,

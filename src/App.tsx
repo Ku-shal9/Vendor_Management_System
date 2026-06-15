@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import {
   Vendor,
   Invoice,
+  Bill,
   Registration,
   UserInfo,
   PurchaseRequest,
 } from "./types.js";
-import { DEFAULT_VIEW, canAccessView } from "./config/roles.js";
+import { DEFAULT_VIEW, canAccessView, vendorViewToTab } from "./config/roles.js";
 import { useToast } from "./context/ToastContext.js";
 import { useConfirm } from "./context/ConfirmContext.js";
 import { useNotifications } from "./context/NotificationContext.js";
@@ -20,7 +21,9 @@ import VendorDirectoryView from "./components/VendorDirectoryView.jsx";
 import VendorDetailView from "./components/VendorDetailView.jsx";
 import OnboardingView from "./components/OnboardingView.jsx";
 import AdminOnboardingView from "./components/AdminOnboardingView.jsx";
-import PaymentsView from "./components/PaymentsView.jsx";
+import BillingView from "./components/BillingView.jsx";
+import PayView from "./components/PayView.jsx";
+import PurchasesView from "./components/PurchasesView.jsx";
 import VendorPortalView from "./components/VendorPortalView.jsx";
 
 export default function App() {
@@ -33,6 +36,7 @@ export default function App() {
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [bills, setBills] = useState<Bill[]>([]);
   const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [purchases, setPurchases] = useState<PurchaseRequest[]>([]);
   const [selectedVendor, setSelectedVendor] = useState<Vendor | null>(null);
@@ -40,11 +44,12 @@ export default function App() {
 
   const fetchAllData = async () => {
     try {
-      const [vRes, pRes, rRes, purRes] = await Promise.all([
+      const [vRes, pRes, rRes, purRes, bRes] = await Promise.all([
         fetch("/api/vendors"),
         fetch("/api/payments"),
         fetch("/api/registrations"),
         fetch("/api/purchases"),
+        fetch("/api/bills"),
       ]);
 
       if (vRes.ok) {
@@ -62,6 +67,10 @@ export default function App() {
       if (purRes.ok) {
         const purData = await purRes.json();
         setPurchases(purData.purchases || []);
+      }
+      if (bRes.ok) {
+        const bData = await bRes.json();
+        setBills(bData.bills || []);
       }
     } catch (err) {
       console.error("Failed to fetch data:", err);
@@ -243,9 +252,23 @@ export default function App() {
     if (response.ok) {
       await fetchAllData();
       pushToast("Purchase request updated");
+      if (user) fetchNotifications(user.email);
     } else {
       pushToast("Purchase request update failed", "error");
     }
+  };
+
+  const handlePayBill = async (billId: string) => {
+    const response = await fetch(`/api/bills/${billId}/pay`, { method: "POST" });
+    if (response.ok) {
+      await fetchAllData();
+      pushToast("Payment successful — invoice generated");
+      if (user) fetchNotifications(user.email);
+      return true;
+    }
+    const data = await response.json().catch(() => ({}));
+    pushToast(data.error || "Payment failed", "error");
+    return false;
   };
 
   const handleDeletePurchase = async (id: string) => {
@@ -263,7 +286,7 @@ export default function App() {
     : undefined;
 
   const vendorInvoices = user?.vendorId
-    ? invoices.filter((i) => i.vendorId === user.vendorId)
+    ? invoices.filter((i) => i.vendorId === user.vendorId && i.status === "Paid")
     : [];
 
   const showAuthView =
@@ -285,7 +308,11 @@ export default function App() {
         {user && (
           <Sidebar
             currentView={
-              currentView === "vendor-detail" ? "vendors" : currentView
+              currentView === "vendor-detail"
+                ? "vendors"
+                : currentView.startsWith("vendor-")
+                  ? currentView
+                  : currentView
             }
             onNavigate={handleNavigateTo}
             isOpen={sidebarOpen}
@@ -299,7 +326,11 @@ export default function App() {
           id="main-content"
           tabIndex={-1}
           className={`flex-1 transition-all duration-300 min-w-0 outline-none ${
-            user ? (sidebarOpen ? "md:pl-72" : "md:pl-20") : ""
+            user
+              ? sidebarOpen
+                ? "md:pl-72"
+                : "md:pl-[4.5rem]"
+              : ""
           }`}
         >
           {loading ? (
@@ -370,31 +401,37 @@ export default function App() {
                 />
               )}
 
-              {currentView === "payments" &&
+              {currentView === "billing" &&
                 user?.role === "FinancialManager" && (
-                  <PaymentsView
-                    invoices={invoices}
+                  <BillingView bills={bills} />
+                )}
+
+              {currentView === "pay" && user?.role === "FinancialManager" && (
+                <PayView bills={bills} onPayBill={handlePayBill} />
+              )}
+
+              {currentView === "purchases" &&
+                user?.role === "FinancialManager" && (
+                  <PurchasesView
                     vendors={vendors}
                     purchases={purchases}
-                    onAddInvoice={handleAddInvoice}
-                    onUpdateInvoice={handleUpdateInvoice}
-                    onDeleteInvoice={handleDeleteInvoice}
                     onAddPurchase={handleAddPurchase}
-                    onUpdatePurchase={handleUpdatePurchase}
                     onDeletePurchase={handleDeletePurchase}
                   />
                 )}
 
-              {currentView === "vendor-portal" && user?.role === "Vendor" && (
-                <VendorPortalView
-                  vendor={linkedVendor}
-                  invoices={vendorInvoices}
-                  purchases={purchases}
-                  onUpdateVendor={handleUpdateVendor}
-                  onUpdatePurchase={handleUpdatePurchase}
-                  user={user}
-                />
-              )}
+              {currentView.startsWith("vendor-") &&
+                user?.role === "Vendor" && (
+                  <VendorPortalView
+                    vendor={linkedVendor}
+                    invoices={vendorInvoices}
+                    purchases={purchases}
+                    onUpdateVendor={handleUpdateVendor}
+                    onUpdatePurchase={handleUpdatePurchase}
+                    user={user}
+                    activeTab={vendorViewToTab(currentView)}
+                  />
+                )}
             </>
           )}
         </main>
@@ -403,7 +440,11 @@ export default function App() {
       {user && (
         <BottomNav
           currentView={
-            currentView === "vendor-detail" ? "vendors" : currentView
+            currentView === "vendor-detail"
+              ? "vendors"
+              : currentView.startsWith("vendor-")
+                ? currentView
+                : currentView
           }
           onNavigate={handleNavigateTo}
           user={user}

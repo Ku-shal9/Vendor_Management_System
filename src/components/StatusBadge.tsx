@@ -1,9 +1,10 @@
-import type { Invoice, PurchaseRequest } from "../types.js";
+import type { Invoice, PurchaseRequest, Bill } from "../types.js";
 
-type AllStatus = Invoice["status"] | PurchaseRequest["status"];
+type AllStatus = Invoice["status"] | PurchaseRequest["status"] | Bill["status"];
 
 const STATUS_STYLES: Record<AllStatus, string> = {
   Paid: "bg-success-surface text-success-ink",
+  Due: "bg-surface-muted text-ink-muted",
   Overdue: "bg-danger-surface text-danger-ink",
   Pending: "bg-surface-muted text-ink-muted",
   Approved: "bg-primary-tint text-primary",

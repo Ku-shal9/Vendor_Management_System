@@ -24,6 +24,21 @@ export interface Invoice {
   amount: number;
   date: string;
   status: "Paid" | "Pending" | "Overdue";
+  purchaseRequestId?: string;
+  billId?: string;
+}
+
+export interface Bill {
+  id: string;
+  purchaseRequestId: string;
+  vendorId: string;
+  vendorName: string;
+  amount: number;
+  date: string;
+  status: "Due" | "Paid";
+  invoiceId?: string;
+  paidAt?: string;
+  stripePaymentIntentId?: string;
 }
 
 export interface Registration {
@@ -72,7 +87,9 @@ export type NotificationType =
   | "invoice_created"
   | "purchase_request_created"
   | "purchase_request_accepted"
-  | "purchase_request_delivered";
+  | "purchase_request_delivered"
+  | "bill_created"
+  | "payment_completed";
 
 export interface Notification {
   id: string;
@@ -86,6 +103,7 @@ export interface Notification {
     invoiceId?: string;
     invoiceAmount?: number;
     purchaseRequestId?: string;
+    billId?: string;
     companyName?: string;
   };
 }

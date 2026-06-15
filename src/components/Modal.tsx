@@ -11,13 +11,21 @@ interface ModalProps {
 function getFocusableElements(container: HTMLElement) {
   return Array.from(
     container.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
   );
 }
 
-export default function Modal({ open, onClose, titleId, children, className = "" }: ModalProps) {
+export default function Modal({
+  open,
+  onClose,
+  titleId,
+  children,
+  className = "",
+}: ModalProps) {
   const panelRef = useRef<HTMLDivElement>(null);
+  const latestOnClose = useRef(onClose);
+  latestOnClose.current = onClose;
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +38,7 @@ export default function Modal({ open, onClose, titleId, children, className = ""
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        latestOnClose.current();
         return;
       }
 
@@ -56,7 +64,7 @@ export default function Modal({ open, onClose, titleId, children, className = ""
       document.removeEventListener("keydown", onKeyDown);
       previousFocus?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

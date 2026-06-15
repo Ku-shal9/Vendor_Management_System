@@ -1,4 +1,4 @@
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import {
   Vendor,
   Invoice,
@@ -6,16 +6,13 @@ import {
   VendorItem,
   UserInfo,
 } from "../types.js";
+import type { VendorPortalTab } from "../config/roles.js";
 import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
 import {
   Plus,
   Pencil,
   Trash2,
-  Settings,
-  Layers,
-  ListOrdered,
-  ShoppingBag,
   CheckCircle,
 } from "lucide-react";
 import { useConfirm } from "../context/ConfirmContext.js";
@@ -28,6 +25,7 @@ interface VendorPortalViewProps {
   onUpdateVendor: (vendor: Vendor) => void;
   onUpdatePurchase: (id: string, updates: Partial<PurchaseRequest>) => void;
   user: UserInfo | null;
+  activeTab: VendorPortalTab;
 }
 
 export default function VendorPortalView({
@@ -37,12 +35,10 @@ export default function VendorPortalView({
   onUpdateVendor,
   onUpdatePurchase,
   user,
+  activeTab,
 }: VendorPortalViewProps) {
   const confirm = useConfirm();
   const { pushToast } = useToast();
-  const [activeTab, setActiveTab] = useState<
-    "overview" | "invoices" | "purchases" | "catalog" | "profile"
-  >("overview");
 
   // Profile Form State
   const [profileForm, setProfileForm] = useState<Vendor>(
@@ -69,6 +65,12 @@ export default function VendorPortalView({
   const [itemName, setItemName] = useState("");
   const [itemPrice, setItemPrice] = useState("");
   const [itemDesc, setItemDesc] = useState("");
+
+  useEffect(() => {
+    if (activeTab === "profile" && vendor) {
+      setProfileForm(vendor);
+    }
+  }, [activeTab, vendor]);
 
   if (!vendor) {
     return (
@@ -259,34 +261,6 @@ export default function VendorPortalView({
             <span className="font-semibold text-ink">{vendor.id}</span>
           </p>
         </div>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-x-6 gap-y-2 border-b border-border mb-8">
-        {[
-          { id: "overview", label: "Overview", icon: Layers },
-          { id: "invoices", label: "My Invoices", icon: ShoppingBag },
-          { id: "purchases", label: "Purchase Requests", icon: ListOrdered },
-          { id: "catalog", label: "Product Catalog", icon: ShoppingBag },
-          { id: "profile", label: "Profile Settings", icon: Settings },
-        ].map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => {
-              setActiveTab(id as any);
-              if (id === "profile") setProfileForm(vendor);
-            }}
-            className={`flex items-center gap-2 pb-3 text-sm font-semibold border-b-2 transition-colors focus-visible:outline-none ${
-              activeTab === id
-                ? "border-primary text-primary"
-                : "border-transparent text-ink-muted hover:text-ink"
-            }`}
-          >
-            <Icon className="w-4 h-4" />
-            {label}
-          </button>
-        ))}
       </div>
 
       {/* Overview tab */}

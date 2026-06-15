@@ -1,0 +1,70 @@
+import { describe, it, expect } from "vitest";
+import {
+  buildBillFromPurchase,
+  buildInvoiceFromBill,
+  buildBillPaidUpdate,
+} from "./billing.js";
+
+describe("buildBillFromPurchase", () => {
+  it("creates due bill from delivered purchase", () => {
+    const bill = buildBillFromPurchase(
+      {
+        id: "PRQ-001",
+        vendorId: "techflow",
+        vendorName: "TechFlow",
+        date: "2026-06-01",
+        items: [{ name: "Widget", price: 50, quantity: 2 }],
+        totalAmount: 100,
+        status: "Delivered",
+      },
+      "BILL-001",
+    );
+
+    expect(bill.status).toBe("Due");
+    expect(bill.amount).toBe(100);
+    expect(bill.purchaseRequestId).toBe("PRQ-001");
+  });
+});
+
+describe("buildInvoiceFromBill", () => {
+  it("creates paid invoice linked to bill", () => {
+    const invoice = buildInvoiceFromBill(
+      {
+        id: "BILL-001",
+        purchaseRequestId: "PRQ-001",
+        vendorId: "techflow",
+        vendorName: "TechFlow",
+        amount: 100,
+        date: "2026-06-01",
+        status: "Due",
+      },
+      "INV-001",
+    );
+
+    expect(invoice.status).toBe("Paid");
+    expect(invoice.billId).toBe("BILL-001");
+    expect(invoice.purchaseRequestId).toBe("PRQ-001");
+  });
+});
+
+describe("buildBillPaidUpdate", () => {
+  it("marks bill paid with stripe reference", () => {
+    const update = buildBillPaidUpdate(
+      {
+        id: "BILL-001",
+        purchaseRequestId: "PRQ-001",
+        vendorId: "techflow",
+        vendorName: "TechFlow",
+        amount: 100,
+        date: "2026-06-01",
+        status: "Due",
+      },
+      "INV-001",
+      "pi_test_123",
+    );
+
+    expect(update.status).toBe("Paid");
+    expect(update.invoiceId).toBe("INV-001");
+    expect(update.stripePaymentIntentId).toBe("pi_test_123");
+  });
+});
