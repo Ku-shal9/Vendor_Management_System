@@ -392,6 +392,7 @@ export default function App() {
                   purchases={purchases}
                   onUpdateVendor={handleUpdateVendor}
                   onUpdatePurchase={handleUpdatePurchase}
+                  user={user}
                 />
               )}
             </>

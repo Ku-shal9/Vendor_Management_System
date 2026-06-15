@@ -1,9 +1,25 @@
 import { useState, FormEvent } from "react";
-import { Vendor, Invoice, PurchaseRequest, VendorItem } from "../types.js";
+import {
+  Vendor,
+  Invoice,
+  PurchaseRequest,
+  VendorItem,
+  UserInfo,
+} from "../types.js";
 import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
-import { Plus, Pencil, Trash2, Settings, Layers, ListOrdered, ShoppingBag, CheckCircle } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Settings,
+  Layers,
+  ListOrdered,
+  ShoppingBag,
+  CheckCircle,
+} from "lucide-react";
 import { useConfirm } from "../context/ConfirmContext.js";
+import { useToast } from "../context/ToastContext.js";
 
 interface VendorPortalViewProps {
   vendor: Vendor | undefined;
@@ -11,6 +27,7 @@ interface VendorPortalViewProps {
   purchases: PurchaseRequest[];
   onUpdateVendor: (vendor: Vendor) => void;
   onUpdatePurchase: (id: string, updates: Partial<PurchaseRequest>) => void;
+  user: UserInfo | null;
 }
 
 export default function VendorPortalView({
@@ -19,20 +36,32 @@ export default function VendorPortalView({
   purchases,
   onUpdateVendor,
   onUpdatePurchase,
+  user,
 }: VendorPortalViewProps) {
   const confirm = useConfirm();
-  const [activeTab, setActiveTab] = useState<"overview" | "invoices" | "purchases" | "catalog" | "profile">("overview");
+  const { pushToast } = useToast();
+  const [activeTab, setActiveTab] = useState<
+    "overview" | "invoices" | "purchases" | "catalog" | "profile"
+  >("overview");
 
   // Profile Form State
-  const [profileForm, setProfileForm] = useState<Vendor>(vendor || {
-    id: "",
-    name: "",
-    category: "",
-    accountManager: "",
-    email: "",
-    phone: "",
-    address: ""
-  });
+  const [profileForm, setProfileForm] = useState<Vendor>(
+    vendor || {
+      id: "",
+      name: "",
+      category: "",
+      accountManager: "",
+      email: "",
+      phone: "",
+      address: "",
+    },
+  );
+
+  // Password Change State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   // Catalog Form State
   const [showItemModal, setShowItemModal] = useState(false);
@@ -44,9 +73,12 @@ export default function VendorPortalView({
   if (!vendor) {
     return (
       <div className="max-w-[800px] mx-auto px-4 py-16 text-center">
-        <h1 className="font-display text-xl font-bold text-ink mb-2">No vendor profile linked</h1>
+        <h1 className="font-display text-xl font-bold text-ink mb-2">
+          No vendor profile linked
+        </h1>
         <p className="text-sm text-ink-muted">
-          Your account is not linked to a vendor record. Contact CLance Solutions admin for access.
+          Your account is not linked to a vendor record. Contact CLance
+          Solutions admin for access.
         </p>
       </div>
     );
@@ -58,7 +90,10 @@ export default function VendorPortalView({
   // Invoices metrics
   const totalInvoiced = invoices.reduce((sum, inv) => sum + inv.amount, 0);
   const pendingInvoices = invoices.filter((i) => i.status === "Pending");
-  const outstandingAmount = pendingInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+  const outstandingAmount = pendingInvoices.reduce(
+    (sum, inv) => sum + inv.amount,
+    0,
+  );
 
   // Profile Update Submission
   const handleProfileSubmit = (e: FormEvent) => {
@@ -70,6 +105,47 @@ export default function VendorPortalView({
     // Phone character restriction
     const sanitized = val.replace(/[^0-9+\s()-.]/g, "");
     setProfileForm({ ...profileForm, phone: sanitized });
+  };
+
+  // Password change handler
+  const handlePasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setPasswordError("");
+
+    if (!user?.email) {
+      setPasswordError("User not logged in");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("New passwords do not match");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setPasswordError("Password must be at least 6 characters");
+      return;
+    }
+
+    const response = await fetch("/api/users/password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: user.email,
+        currentPassword,
+        newPassword,
+      }),
+    });
+
+    if (response.ok) {
+      pushToast("Password updated successfully");
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } else {
+      const data = await response.json();
+      setPasswordError(data.error || "Failed to update password");
+    }
   };
 
   // Catalog item price validation
@@ -178,7 +254,10 @@ export default function VendorPortalView({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <div>
           <h1 className="vms-title mb-1">{vendor.name}</h1>
-          <p className="text-sm text-ink-muted">Vendor Portal ID: <span className="font-semibold text-ink">{vendor.id}</span></p>
+          <p className="text-sm text-ink-muted">
+            Vendor Portal ID:{" "}
+            <span className="font-semibold text-ink">{vendor.id}</span>
+          </p>
         </div>
       </div>
 
@@ -216,24 +295,34 @@ export default function VendorPortalView({
           <section className="vms-panel p-6 md:col-span-2 space-y-4">
             <h3 className="font-bold text-ink mb-2">Company Overview</h3>
             <p className="text-sm text-ink-muted">
-              Welcome to your Vendor Portal! You can track invoices, view incoming purchase requests, keep your catalog updated, and edit your profile settings.
+              Welcome to your Vendor Portal! You can track invoices, view
+              incoming purchase requests, keep your catalog updated, and edit
+              your profile settings.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 text-sm">
               <div>
                 <dt className="vms-label">Account Representative</dt>
-                <dd className="font-semibold text-ink mt-0.5">{vendor.accountManager}</dd>
+                <dd className="font-semibold text-ink mt-0.5">
+                  {vendor.accountManager}
+                </dd>
               </div>
               <div>
                 <dt className="vms-label">Business Category</dt>
-                <dd className="font-semibold text-ink mt-0.5">{vendor.category}</dd>
+                <dd className="font-semibold text-ink mt-0.5">
+                  {vendor.category}
+                </dd>
               </div>
               <div>
                 <dt className="vms-label">Business Address</dt>
-                <dd className="font-semibold text-ink mt-0.5">{vendor.address}</dd>
+                <dd className="font-semibold text-ink mt-0.5">
+                  {vendor.address}
+                </dd>
               </div>
               <div>
                 <dt className="vms-label">Billing Email</dt>
-                <dd className="font-semibold text-ink mt-0.5">{vendor.email}</dd>
+                <dd className="font-semibold text-ink mt-0.5">
+                  {vendor.email}
+                </dd>
               </div>
             </div>
           </section>
@@ -242,22 +331,38 @@ export default function VendorPortalView({
             <h3 className="font-bold text-ink mb-2">Quick Stats</h3>
             <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b border-border-subtle">
-                <span className="text-sm text-ink-muted">Invoices Submitted</span>
-                <span className="text-sm font-bold text-ink">{invoices.length}</span>
+                <span className="text-sm text-ink-muted">
+                  Invoices Submitted
+                </span>
+                <span className="text-sm font-bold text-ink">
+                  {invoices.length}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border-subtle">
-                <span className="text-sm text-ink-muted">Outstanding Billings</span>
-                <span className="text-sm font-bold text-ink">${outstandingAmount.toLocaleString()}</span>
+                <span className="text-sm text-ink-muted">
+                  Outstanding Billings
+                </span>
+                <span className="text-sm font-bold text-ink">
+                  ${outstandingAmount.toLocaleString()}
+                </span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-border-subtle">
-                <span className="text-sm text-ink-muted">Total Paid to Date</span>
+                <span className="text-sm text-ink-muted">
+                  Total Paid to Date
+                </span>
                 <span className="text-sm font-bold text-success-ink">
                   ${(totalInvoiced - outstandingAmount).toLocaleString()}
                 </span>
               </div>
               <div className="flex justify-between items-center py-2">
                 <span className="text-sm text-ink-muted">Active Purchases</span>
-                <span className="text-sm font-bold text-ink">{vendorPurchases.filter(p => p.status === "Pending" || p.status === "Approved").length}</span>
+                <span className="text-sm font-bold text-ink">
+                  {
+                    vendorPurchases.filter(
+                      (p) => p.status === "Pending" || p.status === "Approved",
+                    ).length
+                  }
+                </span>
               </div>
             </div>
           </section>
@@ -268,26 +373,43 @@ export default function VendorPortalView({
       {activeTab === "invoices" && (
         <section className="vms-panel overflow-hidden">
           <div className="vms-panel-header">
-            <h3 className="font-bold text-ink">Invoices Overview ({invoices.length})</h3>
+            <h3 className="font-bold text-ink">
+              Invoices Overview ({invoices.length})
+            </h3>
           </div>
           {invoices.length > 0 ? (
             <div className="vms-table-wrap">
               <table className="vms-table min-w-[560px]">
                 <thead>
                   <tr className="vms-table-head">
-                    <th scope="col" className="px-6 py-3">Invoice ID</th>
-                    <th scope="col" className="px-6 py-3">Date</th>
-                    <th scope="col" className="px-6 py-3">Amount</th>
-                    <th scope="col" className="px-6 py-3">Status</th>
+                    <th scope="col" className="px-6 py-3">
+                      Invoice ID
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Date
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Amount
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Status
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {invoices.map((inv) => (
                     <tr key={inv.id} className="vms-table-row">
-                      <td className="px-6 py-4 text-sm font-semibold text-ink">{inv.id}</td>
-                      <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
                       <td className="px-6 py-4 text-sm font-semibold text-ink">
-                        ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        {inv.id}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-ink-muted">
+                        {inv.date}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-ink">
+                        $
+                        {inv.amount.toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                        })}
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={inv.status} />
@@ -307,36 +429,59 @@ export default function VendorPortalView({
       {activeTab === "purchases" && (
         <section className="vms-panel overflow-hidden">
           <div className="vms-panel-header">
-            <h3 className="font-bold text-ink">Purchase Requests from CLance ({vendorPurchases.length})</h3>
+            <h3 className="font-bold text-ink">
+              Purchase Requests from CLance ({vendorPurchases.length})
+            </h3>
           </div>
           {vendorPurchases.length > 0 ? (
             <div className="vms-table-wrap">
               <table className="vms-table min-w-[640px]">
                 <thead>
                   <tr className="vms-table-head">
-                    <th scope="col" className="px-6 py-3">Request ID</th>
-                    <th scope="col" className="px-6 py-3">Date</th>
-                    <th scope="col" className="px-6 py-3">Ordered Items</th>
-                    <th scope="col" className="px-6 py-3">Total Cost</th>
-                    <th scope="col" className="px-6 py-3">Status</th>
-                    <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                    <th scope="col" className="px-6 py-3">
+                      Request ID
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Date
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Ordered Items
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Total Cost
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Status
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {vendorPurchases.map((prq) => (
                     <tr key={prq.id} className="vms-table-row">
-                      <td className="px-6 py-4 text-sm font-semibold text-ink">{prq.id}</td>
-                      <td className="px-6 py-4 text-sm text-ink-muted">{prq.date}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-ink">
+                        {prq.id}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-ink-muted">
+                        {prq.date}
+                      </td>
                       <td className="px-6 py-4 text-xs text-ink-muted">
                         <ul className="list-disc pl-4 space-y-0.5">
                           {prq.items.map((it, idx) => (
                             <li key={idx}>
-                              <span className="font-semibold text-ink">{it.name}</span> x {it.quantity} (${it.price})
+                              <span className="font-semibold text-ink">
+                                {it.name}
+                              </span>{" "}
+                              x {it.quantity} (${it.price})
                             </li>
                           ))}
                         </ul>
                       </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-ink">${prq.totalAmount.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-sm font-semibold text-ink">
+                        ${prq.totalAmount.toFixed(2)}
+                      </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={prq.status} />
                       </td>
@@ -362,7 +507,8 @@ export default function VendorPortalView({
                           )}
                           {prq.status === "Delivered" && (
                             <span className="text-xs font-semibold text-ink-subtle flex items-center gap-1">
-                              <CheckCircle className="w-3.5 h-3.5 text-success-ink" /> Delivered
+                              <CheckCircle className="w-3.5 h-3.5 text-success-ink" />{" "}
+                              Delivered
                             </span>
                           )}
                         </div>
@@ -382,7 +528,9 @@ export default function VendorPortalView({
       {activeTab === "catalog" && (
         <section className="vms-panel overflow-hidden">
           <div className="vms-panel-header flex items-center justify-between">
-            <h3 className="font-bold text-ink">My Products & Services ({vendor.items?.length || 0})</h3>
+            <h3 className="font-bold text-ink">
+              My Products & Services ({vendor.items?.length || 0})
+            </h3>
             <button
               type="button"
               onClick={() => openItemModal()}
@@ -393,26 +541,44 @@ export default function VendorPortalView({
             </button>
           </div>
           {!vendor.items || vendor.items.length === 0 ? (
-            <p className="vms-empty">No items listed in your catalog. Add items so CLance can request purchases.</p>
+            <p className="vms-empty">
+              No items listed in your catalog. Add items so CLance can request
+              purchases.
+            </p>
           ) : (
             <div className="vms-table-wrap">
               <table className="vms-table min-w-[600px]">
                 <thead>
                   <tr className="vms-table-head">
-                    <th scope="col" className="px-6 py-3">Item Name</th>
-                    <th scope="col" className="px-6 py-3">Description</th>
-                    <th scope="col" className="px-6 py-3">Price</th>
-                    <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                    <th scope="col" className="px-6 py-3">
+                      Item Name
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Description
+                    </th>
+                    <th scope="col" className="px-6 py-3">
+                      Price
+                    </th>
+                    <th scope="col" className="px-6 py-3 text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
                   {vendor.items.map((item, index) => (
                     <tr key={index} className="vms-table-row">
-                      <td className="px-6 py-4 text-sm font-semibold text-ink">{item.name}</td>
-                      <td className="px-6 py-4 text-sm text-ink-muted max-w-[280px] truncate" title={item.description}>
+                      <td className="px-6 py-4 text-sm font-semibold text-ink">
+                        {item.name}
+                      </td>
+                      <td
+                        className="px-6 py-4 text-sm text-ink-muted max-w-[280px] truncate"
+                        title={item.description}
+                      >
                         {item.description || "-"}
                       </td>
-                      <td className="px-6 py-4 text-sm font-bold text-primary">${item.price.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-sm font-bold text-primary">
+                        ${item.price.toFixed(2)}
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-1">
                           <button
@@ -449,51 +615,72 @@ export default function VendorPortalView({
           <form onSubmit={handleProfileSubmit} className="space-y-4 max-w-2xl">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="prof-name" className="vms-label mb-1">Company legal name *</label>
+                <label htmlFor="prof-name" className="vms-label mb-1">
+                  Company legal name *
+                </label>
                 <input
                   id="prof-name"
                   type="text"
                   required
                   value={profileForm.name}
-                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, name: e.target.value })
+                  }
                   className="vms-input"
                 />
               </div>
               <div>
-                <label htmlFor="prof-category" className="vms-label mb-1">Business category *</label>
+                <label htmlFor="prof-category" className="vms-label mb-1">
+                  Business category *
+                </label>
                 <input
                   id="prof-category"
                   type="text"
                   required
                   value={profileForm.category}
-                  onChange={(e) => setProfileForm({ ...profileForm, category: e.target.value })}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, category: e.target.value })
+                  }
                   className="vms-input"
                 />
               </div>
               <div>
-                <label htmlFor="prof-manager" className="vms-label mb-1">Account manager *</label>
+                <label htmlFor="prof-manager" className="vms-label mb-1">
+                  Account manager *
+                </label>
                 <input
                   id="prof-manager"
                   type="text"
                   required
                   value={profileForm.accountManager}
-                  onChange={(e) => setProfileForm({ ...profileForm, accountManager: e.target.value })}
+                  onChange={(e) =>
+                    setProfileForm({
+                      ...profileForm,
+                      accountManager: e.target.value,
+                    })
+                  }
                   className="vms-input"
                 />
               </div>
               <div>
-                <label htmlFor="prof-email" className="vms-label mb-1">Corporate billing email *</label>
+                <label htmlFor="prof-email" className="vms-label mb-1">
+                  Corporate billing email *
+                </label>
                 <input
                   id="prof-email"
                   type="email"
                   required
                   value={profileForm.email}
-                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, email: e.target.value })
+                  }
                   className="vms-input"
                 />
               </div>
               <div>
-                <label htmlFor="prof-phone" className="vms-label mb-1">Business phone number *</label>
+                <label htmlFor="prof-phone" className="vms-label mb-1">
+                  Business phone number *
+                </label>
                 <input
                   id="prof-phone"
                   type="tel"
@@ -504,13 +691,17 @@ export default function VendorPortalView({
                 />
               </div>
               <div>
-                <label htmlFor="prof-address" className="vms-label mb-1">Office address *</label>
+                <label htmlFor="prof-address" className="vms-label mb-1">
+                  Office address *
+                </label>
                 <input
                   id="prof-address"
                   type="text"
                   required
                   value={profileForm.address}
-                  onChange={(e) => setProfileForm({ ...profileForm, address: e.target.value })}
+                  onChange={(e) =>
+                    setProfileForm({ ...profileForm, address: e.target.value })
+                  }
                   className="vms-input"
                 />
               </div>
@@ -521,17 +712,83 @@ export default function VendorPortalView({
               </button>
             </div>
           </form>
+
+          {/* Password Change Section */}
+          <div className="mt-8 pt-6 border-t border-border">
+            <h4 className="font-bold text-ink mb-4">Change Password</h4>
+            <form
+              onSubmit={handlePasswordSubmit}
+              className="space-y-4 max-w-md"
+            >
+              <div>
+                <label htmlFor="current-password" className="vms-label mb-1">
+                  Current Password *
+                </label>
+                <input
+                  id="current-password"
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="vms-input"
+                />
+              </div>
+              <div>
+                <label htmlFor="new-password" className="vms-label mb-1">
+                  New Password *
+                </label>
+                <input
+                  id="new-password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="vms-input"
+                />
+              </div>
+              <div>
+                <label htmlFor="confirm-password" className="vms-label mb-1">
+                  Confirm New Password *
+                </label>
+                <input
+                  id="confirm-password"
+                  type="password"
+                  required
+                  minLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="vms-input"
+                />
+              </div>
+              {passwordError && (
+                <p className="text-sm text-danger-ink">{passwordError}</p>
+              )}
+              <div className="flex justify-end pt-2">
+                <button type="submit" className="vms-btn-secondary px-4">
+                  Update Password
+                </button>
+              </div>
+            </form>
+          </div>
         </section>
       )}
 
       {/* Catalog Add/Edit Modal */}
-      <Modal open={showItemModal} onClose={() => setShowItemModal(false)} titleId="item-modal-title" className="vms-panel p-6 max-w-md w-full shadow-xl">
+      <Modal
+        open={showItemModal}
+        onClose={() => setShowItemModal(false)}
+        titleId="item-modal-title"
+        className="vms-panel p-6 max-w-md w-full shadow-xl"
+      >
         <h2 id="item-modal-title" className="font-bold text-ink mb-4">
           {editingItemIndex !== null ? "Edit catalog item" : "Add catalog item"}
         </h2>
         <form onSubmit={handleItemSubmit} className="space-y-4">
           <div>
-            <label htmlFor="item-name-input" className="vms-label mb-1">Item Name *</label>
+            <label htmlFor="item-name-input" className="vms-label mb-1">
+              Item Name *
+            </label>
             <input
               id="item-name-input"
               type="text"
@@ -542,7 +799,9 @@ export default function VendorPortalView({
             />
           </div>
           <div>
-            <label htmlFor="item-price-input" className="vms-label mb-1">Price (USD) *</label>
+            <label htmlFor="item-price-input" className="vms-label mb-1">
+              Price (USD) *
+            </label>
             <input
               id="item-price-input"
               type="text"
@@ -554,7 +813,9 @@ export default function VendorPortalView({
             />
           </div>
           <div>
-            <label htmlFor="item-desc-input" className="vms-label mb-1">Description</label>
+            <label htmlFor="item-desc-input" className="vms-label mb-1">
+              Description
+            </label>
             <textarea
               id="item-desc-input"
               rows={3}
@@ -564,7 +825,11 @@ export default function VendorPortalView({
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowItemModal(false)} className="vms-btn-secondary">
+            <button
+              type="button"
+              onClick={() => setShowItemModal(false)}
+              className="vms-btn-secondary"
+            >
               Cancel
             </button>
             <button type="submit" className="vms-btn-primary">

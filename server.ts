@@ -34,6 +34,13 @@ function formatDate(): string {
   });
 }
 
+function generatePassword(): string {
+  return Math.random()
+    .toString(36)
+    .slice(2, 10)
+    .replace(/[^a-zA-Z0-9]/g, "a");
+}
+
 // Auth
 app.post("/api/auth/login", async (req, res) => {
   try {
@@ -395,29 +402,14 @@ app.post("/api/registrations/approve", async (req, res) => {
     .collection("registrations")
     .updateOne({ id: reg.id }, { $set: { status: "Approved" } });
 
-  // Create notification for specific vendor user (if exists)
-  const vendorUser = await getDb()
-    .collection("users")
-    .findOne({ email: reg.contactEmail });
-  if (vendorUser) {
-    const notification: Notification = {
-      id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
-      userId: vendorUser.email,
-      type: "registration_approved",
-      message: `Your registration for ${reg.companyName} has been approved`,
-      read: false,
-      createdAt: new Date().toISOString(),
-      metadata: { companyName: reg.companyName },
-    };
-    await getDb().collection("notifications").insertOne(notification);
-  }
-
   const vendorId = slugId(reg.companyName);
   const existing = await getDb()
     .collection("vendors")
     .findOne({ id: vendorId });
+
+  let vendor: Vendor;
   if (!existing) {
-    const onboardingVendor: Vendor = {
+    vendor = {
       id: vendorId,
       name: reg.companyName,
       category: reg.category,
@@ -426,19 +418,49 @@ app.post("/api/registrations/approve", async (req, res) => {
       phone: reg.contactPhone,
       address: reg.address,
     };
-    await getDb().collection("vendors").insertOne(onboardingVendor);
-    res.json({
-      success: true,
-      registration: { ...reg, status: "Approved" },
-      vendor: onboardingVendor,
-    });
+    await getDb().collection("vendors").insertOne(vendor);
   } else {
-    res.json({
-      success: true,
-      registration: { ...reg, status: "Approved" },
-      vendor: existing,
-    });
+    vendor = {
+      id: existing.id,
+      name: existing.name,
+      category: existing.category,
+      accountManager: existing.accountManager,
+      email: existing.email,
+      phone: existing.phone,
+      address: existing.address,
+    };
   }
+
+  // Create vendor user account with generated password
+  const generatedPassword = generatePassword();
+  const vendorUser = {
+    email: reg.contactEmail,
+    password: generatedPassword,
+    name: reg.contactName,
+    role: "Vendor" as const,
+    department: reg.companyName,
+    vendorId: vendorId,
+  };
+  await getDb().collection("users").insertOne(vendorUser);
+
+  // Create notification for vendor
+  const notification: Notification = {
+    id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
+    userId: reg.contactEmail,
+    type: "registration_approved",
+    message: `Your registration for ${reg.companyName} has been approved. Login credentials: ${reg.contactEmail} / ${generatedPassword}`,
+    read: false,
+    createdAt: new Date().toISOString(),
+    metadata: { companyName: reg.companyName },
+  };
+  await getDb().collection("notifications").insertOne(notification);
+
+  res.json({
+    success: true,
+    registration: { ...reg, status: "Approved" },
+    vendor,
+    credentials: { email: reg.contactEmail, password: generatedPassword },
+  });
 });
 
 app.post("/api/registrations/reject", async (req, res) => {
@@ -529,6 +551,37 @@ app.delete("/api/notifications/:id", async (req, res) => {
     .deleteOne({ id: req.params.id });
   if (result.deletedCount === 0)
     return res.status(404).json({ error: "Notification not found" });
+  res.json({ success: true });
+});
+
+// Change password
+app.post("/api/users/password", async (req, res) => {
+  const { email, currentPassword, newPassword } = req.body;
+  if (!email || !currentPassword || !newPassword) {
+    return res
+      .status(400)
+      .json({ error: "email, currentPassword, and newPassword required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res
+      .status(400)
+      .json({ error: "Password must be at least 6 characters" });
+  }
+
+  const user = await getDb().collection("users").findOne({ email });
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  if (user.password !== currentPassword) {
+    return res.status(401).json({ error: "Current password is incorrect" });
+  }
+
+  await getDb()
+    .collection("users")
+    .updateOne({ email }, { $set: { password: newPassword } });
+
   res.json({ success: true });
 });
 
