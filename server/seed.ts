@@ -11,6 +11,7 @@ export async function seedDatabase(db: Db): Promise<void> {
   await db.collection("users").deleteMany({});
   await db.collection("purchases").deleteMany({});
   await db.collection("notifications").deleteMany({});
+  await db.collection("otps").deleteMany({});
 
   await db.collection("vendors").insertMany([
     {
@@ -177,6 +178,14 @@ export async function seedDatabase(db: Db): Promise<void> {
       role: "Vendor",
       department: "Dishome Fibernet",
       vendorId: "dishome",
+    },
+    {
+      email: "kushalthapa759@gmail.com",
+      password: "testpassword",
+      name: "Kushal Thapa",
+      role: "Vendor",
+      department: "Test Vendor",
+      vendorId: "testvendor",
     },
   ]);
 

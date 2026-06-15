@@ -1,7 +1,8 @@
+import "./server/env.js";
+
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import dotenv from "dotenv";
 import { connectToDatabase, getDb } from "./server/db.js";
 import {
   saveRegistrationDocument,
@@ -14,8 +15,11 @@ import {
   Notification,
   NotificationType,
 } from "./src/types.js";
-
-dotenv.config();
+import {
+  generateOTP,
+  sendCredentialsEmail,
+  sendResetPasswordEmail,
+} from "./server/email.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -431,11 +435,22 @@ app.post("/api/registrations/approve", async (req, res) => {
     };
   }
 
-  // Create vendor user account with generated password
-  const generatedPassword = generatePassword();
+  // Generate OTP for vendor login
+  const otp = generateOTP();
+  const otpExpiry = new Date(Date.now() + 15 * 60000); // 15 minutes
+
+  // Store OTP in database
+  await getDb().collection("otps").insertOne({
+    email: reg.contactEmail,
+    otp,
+    expiresAt: otpExpiry,
+    used: false,
+  });
+
+  // Create vendor user account (password will be set on first login)
   const vendorUser = {
     email: reg.contactEmail,
-    password: generatedPassword,
+    password: otp, // Initial password is the OTP
     name: reg.contactName,
     role: "Vendor" as const,
     department: reg.companyName,
@@ -443,12 +458,19 @@ app.post("/api/registrations/approve", async (req, res) => {
   };
   await getDb().collection("users").insertOne(vendorUser);
 
+  // Send credentials email
+  try {
+    await sendCredentialsEmail(reg.contactEmail, reg.contactName, otp);
+  } catch (err) {
+    console.error("Failed to send email:", err);
+  }
+
   // Create notification for vendor
   const notification: Notification = {
     id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
     userId: reg.contactEmail,
     type: "registration_approved",
-    message: `Your registration for ${reg.companyName} has been approved. Login credentials: ${reg.contactEmail} / ${generatedPassword}`,
+    message: `Your registration for ${reg.companyName} has been approved. Check your email for your one-time login code.`,
     read: false,
     createdAt: new Date().toISOString(),
     metadata: { companyName: reg.companyName },
@@ -459,7 +481,7 @@ app.post("/api/registrations/approve", async (req, res) => {
     success: true,
     registration: { ...reg, status: "Approved" },
     vendor,
-    credentials: { email: reg.contactEmail, password: generatedPassword },
+    credentials: { email: reg.contactEmail, password: otp },
   });
 });
 
@@ -581,6 +603,86 @@ app.post("/api/users/password", async (req, res) => {
   await getDb()
     .collection("users")
     .updateOne({ email }, { $set: { password: newPassword } });
+
+  res.json({ success: true });
+});
+
+// Forgot password - send OTP
+app.post("/api/auth/forgot-password", async (req, res) => {
+  const { email, role } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "email required" });
+  }
+
+  // Only allow Vendor and FinancialManager roles
+  if (role === "Admin") {
+    return res.status(403).json({ error: "Admin password reset not allowed" });
+  }
+
+  const user = await getDb().collection("users").findOne({ email, role });
+  if (!user) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const otp = generateOTP();
+  const otpExpiry = new Date(Date.now() + 15 * 60000); // 15 minutes
+
+  // Store or update OTP
+  await getDb()
+    .collection("otps")
+    .updateOne(
+      { email },
+      { $set: { email, otp, expiresAt: otpExpiry, used: false } },
+      { upsert: true },
+    );
+
+  // Send reset email
+  try {
+    await sendResetPasswordEmail(email, user.name, otp);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Failed to send reset email:", err);
+    res.status(500).json({ error: "Failed to send reset email" });
+  }
+});
+
+// Verify OTP and reset password
+app.post("/api/auth/reset-password", async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  if (!email || !otp || !newPassword) {
+    return res
+      .status(400)
+      .json({ error: "email, otp, and newPassword required" });
+  }
+
+  if (newPassword.length < 6) {
+    return res
+      .status(400)
+      .json({ error: "Password must be at least 6 characters" });
+  }
+
+  const otpRecord = await getDb().collection("otps").findOne({
+    email,
+    otp,
+    used: false,
+  });
+
+  if (!otpRecord) {
+    return res.status(400).json({ error: "Invalid OTP" });
+  }
+
+  if (otpRecord.expiresAt < new Date()) {
+    return res.status(400).json({ error: "OTP expired" });
+  }
+
+  // Update password and mark OTP as used
+  await getDb()
+    .collection("users")
+    .updateOne({ email }, { $set: { password: newPassword } });
+
+  await getDb()
+    .collection("otps")
+    .updateOne({ email, otp }, { $set: { used: true } });
 
   res.json({ success: true });
 });

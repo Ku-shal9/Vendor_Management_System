@@ -9,12 +9,15 @@
     "start": "node dist/server.cjs",
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:email": "tsx scripts/test-email.ts"
   },
   "dependencies": {
+    "@emailjs/nodejs": "^5.0.2",
     "@tailwindcss/vite": "^4.1.14",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",
+    "emailjs-com": "^3.2.0",
     "express": "^4.21.2",
     "lucide-react": "^0.546.0",
     "mongodb": "^6.16.0",
