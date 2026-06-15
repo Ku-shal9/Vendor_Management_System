@@ -1,8 +1,15 @@
 import { useState, useEffect } from "react";
-import { Vendor, Invoice, Registration, UserInfo, PurchaseRequest } from "./types.js";
+import {
+  Vendor,
+  Invoice,
+  Registration,
+  UserInfo,
+  PurchaseRequest,
+} from "./types.js";
 import { DEFAULT_VIEW, canAccessView } from "./config/roles.js";
 import { useToast } from "./context/ToastContext.js";
 import { useConfirm } from "./context/ConfirmContext.js";
+import { useNotifications } from "./context/NotificationContext.js";
 import Header from "./components/Header.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import BottomNav from "./components/BottomNav.jsx";
@@ -19,6 +26,7 @@ import VendorPortalView from "./components/VendorPortalView.jsx";
 export default function App() {
   const { pushToast } = useToast();
   const confirm = useConfirm();
+  const { fetchNotifications } = useNotifications();
   const [currentView, setCurrentView] = useState<string>("login");
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [user, setUser] = useState<UserInfo | null>(null);
@@ -71,6 +79,8 @@ export default function App() {
     setUser(loggedInUser);
     setCurrentView(DEFAULT_VIEW[loggedInUser.role]);
     pushToast(`Signed in as ${loggedInUser.name}`);
+    // Fetch notifications for the logged-in user
+    fetchNotifications(loggedInUser.email);
   };
 
   const handleLogout = () => {
@@ -107,7 +117,8 @@ export default function App() {
   const handleDeleteVendor = async (id: string) => {
     const confirmed = await confirm({
       title: "Delete vendor record",
-      message: "This vendor and their linked data will be removed. This cannot be undone.",
+      message:
+        "This vendor and their linked data will be removed. This cannot be undone.",
       confirmLabel: "Delete vendor",
       destructive: true,
     });
@@ -201,11 +212,16 @@ export default function App() {
     pushToast("Registration submitted for review");
   };
 
-  const handleAddPurchase = async (purchasePayload: Partial<PurchaseRequest>) => {
+  const handleAddPurchase = async (
+    purchasePayload: Partial<PurchaseRequest>,
+  ) => {
     const response = await fetch("/api/purchases", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(purchasePayload),
+      body: JSON.stringify({
+        ...purchasePayload,
+        createdBy: user?.email,
+      }),
     });
     if (response.ok) {
       await fetchAllData();
@@ -215,7 +231,10 @@ export default function App() {
     }
   };
 
-  const handleUpdatePurchase = async (id: string, updates: Partial<PurchaseRequest>) => {
+  const handleUpdatePurchase = async (
+    id: string,
+    updates: Partial<PurchaseRequest>,
+  ) => {
     const response = await fetch(`/api/purchases/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -247,7 +266,8 @@ export default function App() {
     ? invoices.filter((i) => i.vendorId === user.vendorId)
     : [];
 
-  const showAuthView = !user && (currentView === "login" || currentView === "register");
+  const showAuthView =
+    !user && (currentView === "login" || currentView === "register");
 
   return (
     <div className="min-h-screen bg-app text-ink flex flex-col font-sans">
@@ -255,6 +275,7 @@ export default function App() {
         user={user}
         onLogout={handleLogout}
         onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+        sidebarOpen={sidebarOpen}
         onNavigate={handleNavigateTo}
         onBackToLogin={() => setCurrentView("login")}
         showBackToLogin={!user && currentView === "register"}
@@ -263,9 +284,12 @@ export default function App() {
       <div className="flex-1 flex pt-16">
         {user && (
           <Sidebar
-            currentView={currentView === "vendor-detail" ? "vendors" : currentView}
+            currentView={
+              currentView === "vendor-detail" ? "vendors" : currentView
+            }
             onNavigate={handleNavigateTo}
             isOpen={sidebarOpen}
+            onToggle={() => setSidebarOpen(!sidebarOpen)}
             onClose={() => setSidebarOpen(false)}
             user={user}
           />
@@ -279,13 +303,25 @@ export default function App() {
           }`}
         >
           {loading ? (
-            <div className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4" role="status" aria-live="polite">
-              <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" aria-hidden="true" />
-              <p className="text-sm font-semibold text-ink-muted">Loading records...</p>
+            <div
+              className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4"
+              role="status"
+              aria-live="polite"
+            >
+              <div
+                className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"
+                aria-hidden="true"
+              />
+              <p className="text-sm font-semibold text-ink-muted">
+                Loading records...
+              </p>
             </div>
           ) : showAuthView ? (
             currentView === "register" ? (
-              <OnboardingView onSuccess={handleRegistrationSuccess} onCancel={() => setCurrentView("login")} />
+              <OnboardingView
+                onSuccess={handleRegistrationSuccess}
+                onCancel={() => setCurrentView("login")}
+              />
             ) : (
               <LoginView
                 onLoginSuccess={handleLoginSuccess}
@@ -312,15 +348,19 @@ export default function App() {
                 />
               )}
 
-              {currentView === "vendor-detail" && selectedVendor && user?.role === "Admin" && (
-                <VendorDetailView
-                  vendor={selectedVendor}
-                  invoices={invoices.filter((i) => i.vendorId === selectedVendor.id)}
-                  onNavigateBack={() => handleNavigateTo("vendors")}
-                  onUpdateVendor={handleUpdateVendor}
-                  onDeleteVendor={handleDeleteVendor}
-                />
-              )}
+              {currentView === "vendor-detail" &&
+                selectedVendor &&
+                user?.role === "Admin" && (
+                  <VendorDetailView
+                    vendor={selectedVendor}
+                    invoices={invoices.filter(
+                      (i) => i.vendorId === selectedVendor.id,
+                    )}
+                    onNavigateBack={() => handleNavigateTo("vendors")}
+                    onUpdateVendor={handleUpdateVendor}
+                    onDeleteVendor={handleDeleteVendor}
+                  />
+                )}
 
               {currentView === "onboarding" && user?.role === "Admin" && (
                 <AdminOnboardingView
@@ -330,19 +370,20 @@ export default function App() {
                 />
               )}
 
-              {currentView === "payments" && user?.role === "FinancialManager" && (
-                <PaymentsView
-                  invoices={invoices}
-                  vendors={vendors}
-                  purchases={purchases}
-                  onAddInvoice={handleAddInvoice}
-                  onUpdateInvoice={handleUpdateInvoice}
-                  onDeleteInvoice={handleDeleteInvoice}
-                  onAddPurchase={handleAddPurchase}
-                  onUpdatePurchase={handleUpdatePurchase}
-                  onDeletePurchase={handleDeletePurchase}
-                />
-              )}
+              {currentView === "payments" &&
+                user?.role === "FinancialManager" && (
+                  <PaymentsView
+                    invoices={invoices}
+                    vendors={vendors}
+                    purchases={purchases}
+                    onAddInvoice={handleAddInvoice}
+                    onUpdateInvoice={handleUpdateInvoice}
+                    onDeleteInvoice={handleDeleteInvoice}
+                    onAddPurchase={handleAddPurchase}
+                    onUpdatePurchase={handleUpdatePurchase}
+                    onDeletePurchase={handleDeletePurchase}
+                  />
+                )}
 
               {currentView === "vendor-portal" && user?.role === "Vendor" && (
                 <VendorPortalView
@@ -360,7 +401,9 @@ export default function App() {
 
       {user && (
         <BottomNav
-          currentView={currentView === "vendor-detail" ? "vendors" : currentView}
+          currentView={
+            currentView === "vendor-detail" ? "vendors" : currentView
+          }
           onNavigate={handleNavigateTo}
           user={user}
         />

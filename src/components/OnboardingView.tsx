@@ -47,10 +47,20 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
   };
 
   const handlePhoneChange = (val: string) => {
-    // Restrict to standard phone characters: digits, spaces, parents, hyphens, and +
     const sanitized = val.replace(/[^0-9+\s()-.]/g, "");
     setPhone(sanitized);
   };
+
+  const readFileAsBase64 = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        resolve(result.split(",")[1] || "");
+      };
+      reader.onerror = () => reject(new Error("Could not read file"));
+      reader.readAsDataURL(file);
+    });
 
   const handleFormSubmit = async () => {
     setFormError("");
@@ -62,6 +72,11 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
     setSubmitting(true);
 
     try {
+      const [licenseData, w9Data] = await Promise.all([
+        readFileAsBase64(licenseFile),
+        readFileAsBase64(w9File),
+      ]);
+
       const response = await fetch("/api/registrations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -72,10 +87,10 @@ export default function OnboardingView({ onSuccess, onCancel }: OnboardingViewPr
           contactEmail: email,
           contactPhone: phone,
           address: address || "Not provided",
-          documents: {
-            license: licenseFile.name,
-            w9: w9File.name,
-          }
+          documentsBase64: {
+            license: { name: licenseFile.name, data: licenseData, mimeType: licenseFile.type },
+            w9: { name: w9File.name, data: w9Data, mimeType: w9File.type },
+          },
         }),
       });
 

@@ -10,16 +10,42 @@ export async function connectToDatabase(): Promise<Db> {
     throw new Error("MONGODB_URI is required. Set it in your .env file.");
   }
 
-  client = new MongoClient(uri, {
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
-  });
-  await client.connect();
-  db = client.db(process.env.MONGODB_DB_NAME || "clance_vms");
-  console.log("[MongoDB] Connected to database:", db.databaseName);
+  // Try Atlas connection first, fallback to local MongoDB
+  const atlasUri = uri;
+  const localUri = "mongodb://localhost:27017";
 
-  await seedDatabase(db);
-  return db;
+  for (const mongoUri of [atlasUri, localUri]) {
+    try {
+      client = new MongoClient(mongoUri, {
+        serverSelectionTimeoutMS: 5000,
+        connectTimeoutMS: 5000,
+      });
+
+      await client.connect();
+      db = client.db(process.env.MONGODB_DB_NAME || "clance_vms");
+      console.log(
+        "[MongoDB] Connected to database:",
+        db.databaseName,
+        mongoUri === localUri ? "(local)" : "(Atlas)",
+      );
+
+      await seedDatabase(db);
+      return db;
+    } catch (err: any) {
+      console.error(
+        `[MongoDB] Failed to connect to ${mongoUri === localUri ? "local" : "Atlas"}:`,
+        err.message,
+      );
+      if (client) {
+        await client.close();
+        client = null;
+      }
+    }
+  }
+
+  throw new Error(
+    "Failed to connect to MongoDB. Please check your MONGODB_URI or ensure MongoDB is running locally.",
+  );
 }
 
 export function getDb(): Db {

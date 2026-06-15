@@ -4,6 +4,7 @@ import { Invoice, Vendor, PurchaseRequest } from "../types.js";
 import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
 import { useConfirm } from "../context/ConfirmContext.js";
+import { useToast } from "../context/ToastContext.js";
 
 interface PaymentsViewProps {
   invoices: Invoice[];
@@ -29,6 +30,7 @@ export default function PaymentsView({
   onDeletePurchase,
 }: PaymentsViewProps) {
   const confirm = useConfirm();
+  const { pushToast } = useToast();
   const [activeTab, setActiveTab] = useState<"invoices" | "purchases">("invoices");
 
   // Invoices state
@@ -56,7 +58,6 @@ export default function PaymentsView({
   // Purchases calculation
   const totalPurchaseAmt = purchases.reduce((sum, prq) => sum + prq.totalAmount, 0);
   const pendingPurchases = purchases.filter((p) => p.status === "Pending").length;
-  const approvedPurchases = purchases.filter((p) => p.status === "Approved").length;
 
   const handleAmountChange = (val: string) => {
     // Only allow positive numbers with up to 2 decimal places, block exponent, signs (+, -, e)
@@ -162,7 +163,7 @@ export default function PaymentsView({
       .filter((i) => i.quantity > 0);
 
     if (orderedItems.length === 0) {
-      alert("Select at least one item with a quantity greater than zero.");
+      pushToast("Select at least one item with a quantity greater than zero.", "error");
       return;
     }
 
@@ -224,7 +225,7 @@ export default function PaymentsView({
             Add invoice
           </button>
         ) : (
-          <button type="button" onClick={openPurchaseCreate} disabled={vendors.length === 0} className="vms-btn-primary bg-ink hover:opacity-90">
+          <button type="button" onClick={openPurchaseCreate} disabled={vendors.length === 0} className="vms-btn-primary">
             <ShoppingCart className="w-4 h-4" aria-hidden="true" />
             Request purchase
           </button>
@@ -357,11 +358,7 @@ export default function PaymentsView({
             </span>
             <span aria-hidden="true" className="text-border">|</span>
             <span>
-              Pending Approval: <span className="font-semibold text-ink">{pendingPurchases}</span>
-            </span>
-            <span aria-hidden="true" className="text-border">|</span>
-            <span>
-              Approved/Active: <span className="font-semibold text-success-ink">{approvedPurchases}</span>
+              Pending approval: <span className="font-semibold text-ink">{pendingPurchases}</span>
             </span>
           </div>
 
@@ -576,8 +573,8 @@ export default function PaymentsView({
               <button type="button" onClick={() => setShowPurchaseForm(false)} className="vms-btn-secondary">
                 Cancel
               </button>
-              <button type="submit" disabled={purchaseTotal === 0} className="vms-btn-primary">
-                Submit Request
+              <button type="submit" disabled={purchaseTotal === 0} className="vms-btn-primary whitespace-nowrap">
+                Submit request
               </button>
             </div>
           </div>

@@ -1,13 +1,14 @@
-import { Menu, LogOut, ArrowLeft, Scroll } from "lucide-react";
+import { Menu, LogOut, ArrowLeft } from "lucide-react";
 import { UserInfo } from "../types.js";
 import { ROLE_LABELS } from "../config/roles.js";
 import ThemeToggle from "./ThemeToggle.jsx";
-import { useTheme } from "../context/ThemeContext.js";
+import NotificationPanel from "./NotificationPanel.jsx";
 
 interface HeaderProps {
   user: UserInfo | null;
   onLogout: () => void;
   onToggleSidebar: () => void;
+  sidebarOpen?: boolean;
   onNavigate: (view: string) => void;
   onBackToLogin?: () => void;
   showBackToLogin?: boolean;
@@ -17,12 +18,11 @@ export default function Header({
   user,
   onLogout,
   onToggleSidebar,
+  sidebarOpen,
   onNavigate,
   onBackToLogin,
   showBackToLogin,
 }: HeaderProps) {
-  const { alwaysShowScrollbar, setAlwaysShowScrollbar } = useTheme();
-
   return (
     <header className="fixed top-0 left-0 right-0 z-40 bg-surface border-b border-border flex justify-between items-center w-full px-4 md:px-8 h-16 shadow-xs">
       <a href="#main-content" className="vms-skip-link">
@@ -44,6 +44,7 @@ export default function Header({
             type="button"
             onClick={onToggleSidebar}
             aria-label="Toggle navigation menu"
+            aria-expanded={sidebarOpen}
             className="p-2.5 min-w-11 min-h-11 rounded-lg text-ink-muted hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           >
             <Menu className="w-5 h-5" />
@@ -54,7 +55,11 @@ export default function Header({
           onClick={() =>
             user &&
             onNavigate(
-              user.role === "Admin" ? "dashboard" : user.role === "FinancialManager" ? "payments" : "vendor-portal"
+              user.role === "Admin"
+                ? "dashboard"
+                : user.role === "FinancialManager"
+                  ? "payments"
+                  : "vendor-portal",
             )
           }
           className="font-display text-lg font-extrabold text-ink md:text-xl hover:text-primary truncate focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary rounded"
@@ -64,25 +69,17 @@ export default function Header({
       </div>
 
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-        <button
-          type="button"
-          onClick={() => setAlwaysShowScrollbar(!alwaysShowScrollbar)}
-          aria-label={alwaysShowScrollbar ? "Hide permanent scrollbars" : "Always show scrollbars"}
-          title={alwaysShowScrollbar ? "Hide permanent scrollbars" : "Always show scrollbars"}
-          className={`inline-flex items-center justify-center w-11 h-11 rounded-lg border border-border bg-surface-muted text-ink-muted hover:text-ink hover:bg-surface transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-            alwaysShowScrollbar ? "text-primary border-primary/45 bg-primary/5" : ""
-          }`}
-        >
-          <Scroll className="w-4 h-4" aria-hidden="true" />
-        </button>
         <ThemeToggle />
+        {user && <NotificationPanel user={user} />}
         {user ? (
           <>
             <div className="hidden lg:flex flex-col text-right">
               <span className="text-xs font-semibold text-ink">
                 {user.name}
               </span>
-              <span className="text-[11px] text-ink-subtle">{ROLE_LABELS[user.role]}</span>
+              <span className="text-[11px] text-ink-subtle">
+                {ROLE_LABELS[user.role]}
+              </span>
             </div>
             <button
               type="button"
@@ -94,7 +91,9 @@ export default function Header({
             </button>
           </>
         ) : (
-          <span className="text-xs sm:text-sm text-ink-muted hidden sm:inline">Vendor Management System</span>
+          <span className="text-xs sm:text-sm text-ink-muted hidden sm:inline">
+            Vendor Management System
+          </span>
         )}
       </div>
     </header>

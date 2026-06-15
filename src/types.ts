@@ -1,4 +1,4 @@
-export type UserRole = 'Admin' | 'FinancialManager' | 'Vendor';
+export type UserRole = "Admin" | "FinancialManager" | "Vendor";
 
 export interface VendorItem {
   name: string;
@@ -23,7 +23,7 @@ export interface Invoice {
   vendorName: string;
   amount: number;
   date: string;
-  status: 'Paid' | 'Pending' | 'Overdue';
+  status: "Paid" | "Pending" | "Overdue";
 }
 
 export interface Registration {
@@ -35,7 +35,7 @@ export interface Registration {
   contactPhone: string;
   address: string;
   registeredDate: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: "Pending" | "Approved" | "Rejected";
   documents?: {
     license?: string;
     w9?: string;
@@ -53,7 +53,8 @@ export interface PurchaseRequest {
     quantity: number;
   }>;
   totalAmount: number;
-  status: 'Pending' | 'Approved' | 'Rejected' | 'Delivered';
+  status: "Pending" | "Approved" | "Rejected" | "Delivered";
+  createdBy?: string;
 }
 
 export interface UserInfo {
@@ -62,4 +63,29 @@ export interface UserInfo {
   email: string;
   department: string;
   vendorId?: string;
+}
+
+export type NotificationType =
+  | "registration_submitted"
+  | "registration_approved"
+  | "registration_rejected"
+  | "invoice_created"
+  | "purchase_request_created"
+  | "purchase_request_accepted"
+  | "purchase_request_delivered";
+
+export interface Notification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  message: string;
+  read: boolean;
+  createdAt: string;
+  metadata?: {
+    vendorName?: string;
+    invoiceId?: string;
+    invoiceAmount?: number;
+    purchaseRequestId?: string;
+    companyName?: string;
+  };
 }

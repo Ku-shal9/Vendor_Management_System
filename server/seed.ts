@@ -1,4 +1,5 @@
 import { Db } from "mongodb";
+import { seedSampleDocuments } from "./uploads.js";
 
 export async function seedDatabase(db: Db): Promise<void> {
   console.log("[MongoDB] Seeding initial data...");
@@ -9,6 +10,7 @@ export async function seedDatabase(db: Db): Promise<void> {
   await db.collection("registrations").deleteMany({});
   await db.collection("users").deleteMany({});
   await db.collection("purchases").deleteMany({});
+  await db.collection("notifications").deleteMany({});
 
   await db.collection("vendors").insertMany([
     {
@@ -20,10 +22,22 @@ export async function seedDatabase(db: Db): Promise<void> {
       phone: "+1 (555) 012-3456",
       address: "450 Innovation Way, Austin, TX 78701",
       items: [
-        { name: "Cloud Migrations Package", price: 2499.00, description: "Full stack lift-and-shift to AWS/GCP" },
-        { name: "Managed Kubernetes Support (Monthly)", price: 850.00, description: "24/7 cluster monitoring and updates" },
-        { name: "Security Compliance Audit", price: 1200.00, description: "Detailed report on ISO27001/SOC2 compliance gaps" }
-      ]
+        {
+          name: "Cloud Migrations Package",
+          price: 2499.0,
+          description: "Full stack lift-and-shift to AWS/GCP",
+        },
+        {
+          name: "Managed Kubernetes Support (Monthly)",
+          price: 850.0,
+          description: "24/7 cluster monitoring and updates",
+        },
+        {
+          name: "Security Compliance Audit",
+          price: 1200.0,
+          description: "Detailed report on ISO27001/SOC2 compliance gaps",
+        },
+      ],
     },
     {
       id: "aws",
@@ -34,10 +48,22 @@ export async function seedDatabase(db: Db): Promise<void> {
       phone: "+1 (800) 280-4852",
       address: "410 Terry Ave N, Seattle, WA 98109",
       items: [
-        { name: "EC2 Reserved Instance (t3.xlarge)", price: 85.00, description: "1-year upfront reserved compute instance" },
-        { name: "Enterprise Support Subscription", price: 1500.00, description: "Direct access to AWS solutions architects" },
-        { name: "Amazon S3 Bulk Storage (10TB)", price: 220.00, description: "S3 Standard object storage tier" }
-      ]
+        {
+          name: "EC2 Reserved Instance (t3.xlarge)",
+          price: 85.0,
+          description: "1-year upfront reserved compute instance",
+        },
+        {
+          name: "Enterprise Support Subscription",
+          price: 1500.0,
+          description: "Direct access to AWS solutions architects",
+        },
+        {
+          name: "Amazon S3 Bulk Storage (10TB)",
+          price: 220.0,
+          description: "S3 Standard object storage tier",
+        },
+      ],
     },
     {
       id: "dishome",
@@ -48,10 +74,22 @@ export async function seedDatabase(db: Db): Promise<void> {
       phone: "+977 (1) 421-5588",
       address: "Bakhundole, Lalitpur, Nepal",
       items: [
-        { name: "Corporate Direct Fiber 200Mbps", price: 180.00, description: "Dedicated leased line with 99.9% SLA" },
-        { name: "Static IP Pool (/28 subnet)", price: 25.00, description: "13 usable static public IP addresses" },
-        { name: "NetTV Commercial Connection", price: 12.00, description: "IPTV stream package for lobby displays" }
-      ]
+        {
+          name: "Corporate Direct Fiber 200Mbps",
+          price: 180.0,
+          description: "Dedicated leased line with 99.9% SLA",
+        },
+        {
+          name: "Static IP Pool (/28 subnet)",
+          price: 25.0,
+          description: "13 usable static public IP addresses",
+        },
+        {
+          name: "NetTV Commercial Connection",
+          price: 12.0,
+          description: "IPTV stream package for lobby displays",
+        },
+      ],
     },
   ]);
 
@@ -82,6 +120,8 @@ export async function seedDatabase(db: Db): Promise<void> {
     },
   ]);
 
+  const nexusDocuments = await seedSampleDocuments("REG-001");
+
   await db.collection("registrations").insertMany([
     {
       id: "REG-001",
@@ -94,9 +134,9 @@ export async function seedDatabase(db: Db): Promise<void> {
       registeredDate: "Oct 24, 2023",
       status: "Pending",
       documents: {
-        license: "Nexus_Business_License.pdf",
-        w9: "Nexus_W9_2023.pdf"
-      }
+        license: nexusDocuments.license,
+        w9: nexusDocuments.w9,
+      },
     },
   ]);
 
@@ -147,10 +187,14 @@ export async function seedDatabase(db: Db): Promise<void> {
       vendorName: "TechFlow Solutions Inc.",
       date: "2023-11-01",
       items: [
-        { name: "Managed Kubernetes Support (Monthly)", price: 850.00, quantity: 2 }
+        {
+          name: "Managed Kubernetes Support (Monthly)",
+          price: 850.0,
+          quantity: 2,
+        },
       ],
-      totalAmount: 1700.00,
-      status: "Approved"
+      totalAmount: 1700.0,
+      status: "Approved",
     },
     {
       id: "PRQ-002",
@@ -158,12 +202,12 @@ export async function seedDatabase(db: Db): Promise<void> {
       vendorName: "Dishome Fibernet",
       date: "2023-11-05",
       items: [
-        { name: "Corporate Direct Fiber 200Mbps", price: 180.00, quantity: 1 },
-        { name: "Static IP Pool (/28 subnet)", price: 25.00, quantity: 2 }
+        { name: "Corporate Direct Fiber 200Mbps", price: 180.0, quantity: 1 },
+        { name: "Static IP Pool (/28 subnet)", price: 25.0, quantity: 2 },
       ],
-      totalAmount: 230.00,
-      status: "Pending"
-    }
+      totalAmount: 230.0,
+      status: "Pending",
+    },
   ]);
 
   console.log("[MongoDB] Seed complete.");
