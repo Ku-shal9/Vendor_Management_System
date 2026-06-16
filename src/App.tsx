@@ -7,7 +7,11 @@ import {
   UserInfo,
   PurchaseRequest,
 } from "./types.js";
-import { DEFAULT_VIEW, canAccessView, vendorViewToTab } from "./config/roles.js";
+import {
+  DEFAULT_VIEW,
+  canAccessView,
+  vendorViewToTab,
+} from "./config/roles.js";
 import { useToast } from "./context/ToastContext.js";
 import { useConfirm } from "./context/ConfirmContext.js";
 import { useNotifications } from "./context/NotificationContext.js";
@@ -116,7 +120,11 @@ export default function App() {
       body: JSON.stringify(vendor),
     });
     if (response.ok) {
+      const data = await response.json();
       await fetchAllData();
+      setSelectedVendor(
+        data.vendor || vendors.find((item) => item.id === vendor.id) || null,
+      );
       pushToast("Vendor record updated");
     } else {
       pushToast("Vendor update failed", "error");
@@ -259,7 +267,9 @@ export default function App() {
   };
 
   const handlePayBill = async (billId: string) => {
-    const response = await fetch(`/api/bills/${billId}/pay`, { method: "POST" });
+    const response = await fetch(`/api/bills/${billId}/pay`, {
+      method: "POST",
+    });
     if (response.ok) {
       await fetchAllData();
       pushToast("Payment successful — invoice generated");
@@ -286,7 +296,9 @@ export default function App() {
     : undefined;
 
   const vendorInvoices = user?.vendorId
-    ? invoices.filter((i) => i.vendorId === user.vendorId && i.status === "Paid")
+    ? invoices.filter(
+        (i) => i.vendorId === user.vendorId && i.status === "Paid",
+      )
     : [];
 
   const showAuthView =
@@ -326,24 +338,20 @@ export default function App() {
           id="main-content"
           tabIndex={-1}
           className={`flex-1 transition-all duration-300 min-w-0 outline-none ${
-            user
-              ? sidebarOpen
-                ? "md:pl-72"
-                : "md:pl-[4.5rem]"
-              : ""
+            user ? (sidebarOpen ? "md:pl-72" : "md:pl-[4.5rem]") : ""
           }`}
         >
           {loading ? (
             <div
-              className="h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4"
+              className="min-h-[calc(100vh-4rem)] flex flex-col items-center justify-center space-y-4"
               role="status"
               aria-live="polite"
             >
               <div
-                className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"
+                className="w-11 h-11 border-4 border-primary/20 border-t-primary rounded-full animate-spin"
                 aria-hidden="true"
               />
-              <p className="text-sm font-semibold text-ink-muted">
+              <p className="text-sm font-semibold text-ink">
                 Loading records...
               </p>
             </div>
@@ -420,18 +428,17 @@ export default function App() {
                   />
                 )}
 
-              {currentView.startsWith("vendor-") &&
-                user?.role === "Vendor" && (
-                  <VendorPortalView
-                    vendor={linkedVendor}
-                    invoices={vendorInvoices}
-                    purchases={purchases}
-                    onUpdateVendor={handleUpdateVendor}
-                    onUpdatePurchase={handleUpdatePurchase}
-                    user={user}
-                    activeTab={vendorViewToTab(currentView)}
-                  />
-                )}
+              {currentView.startsWith("vendor-") && user?.role === "Vendor" && (
+                <VendorPortalView
+                  vendor={linkedVendor}
+                  invoices={vendorInvoices}
+                  purchases={purchases}
+                  onUpdateVendor={handleUpdateVendor}
+                  onUpdatePurchase={handleUpdatePurchase}
+                  user={user}
+                  activeTab={vendorViewToTab(currentView)}
+                />
+              )}
             </>
           )}
         </main>

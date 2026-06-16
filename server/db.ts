@@ -1,5 +1,4 @@
 import { MongoClient, Db } from "mongodb";
-import { seedDatabase } from "./seed.js";
 
 let client: MongoClient | null = null;
 let db: Db | null = null;
@@ -29,7 +28,6 @@ export async function connectToDatabase(): Promise<Db> {
         mongoUri === localUri ? "(local)" : "(Atlas)",
       );
 
-      await seedDatabase(db);
       return db;
     } catch (err: any) {
       console.error(

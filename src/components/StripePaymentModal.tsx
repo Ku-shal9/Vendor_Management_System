@@ -6,6 +6,7 @@ import {
   formatExpiry,
   validateCardForm,
 } from "../utils/cardForm.js";
+import { keepCaretAtEnd } from "../utils/inputCaret.js";
 import { Bill } from "../types.js";
 import { useToast } from "../context/ToastContext.js";
 
@@ -135,14 +136,16 @@ export default function StripePaymentModal({
             </label>
             <input
               id="card-cvc"
-              inputMode="numeric"
               value={cvc}
-              onChange={(e) =>
-                setCvc(e.target.value.replace(/\D/g, "").slice(0, 4))
-              }
+              onChange={(e) => {
+                setCvc(e.target.value.replace(/\D/g, "").slice(0, 4));
+                keepCaretAtEnd(e);
+              }}
               placeholder="123"
               className="vms-input font-mono"
               autoComplete="cc-csc"
+              inputMode="numeric"
+              maxLength={4}
               required
             />
           </div>
@@ -162,7 +165,11 @@ export default function StripePaymentModal({
           >
             Cancel
           </button>
-          <button type="submit" disabled={processing} className="vms-btn-primary">
+          <button
+            type="submit"
+            disabled={processing}
+            className="vms-btn-primary"
+          >
             {processing ? "Processing…" : `Pay $${bill.amount.toFixed(2)}`}
           </button>
         </div>

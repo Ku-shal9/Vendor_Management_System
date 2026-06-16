@@ -1,10 +1,26 @@
 import { useState, FormEvent } from "react";
-import { Plus, Search, Pencil, Trash2, ShoppingCart, Calendar } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  ShoppingCart,
+  Calendar,
+  Download,
+} from "lucide-react";
+import {
+  sanitizeSearch,
+  todayIsoDate,
+  validateMoney,
+  validateRequiredText,
+} from "../utils/validation.js";
 import { Invoice, Vendor, PurchaseRequest } from "../types.js";
+import EmptyState from "./EmptyState.jsx";
 import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
 import { useConfirm } from "../context/ConfirmContext.js";
 import { useToast } from "../context/ToastContext.js";
+import { sendInvoiceEmail } from "../utils/invoiceEmail.js";
 
 interface PaymentsViewProps {
   invoices: Invoice[];
@@ -31,21 +47,31 @@ export default function PaymentsView({
 }: PaymentsViewProps) {
   const confirm = useConfirm();
   const { pushToast } = useToast();
-  const [activeTab, setActiveTab] = useState<"invoices" | "purchases">("invoices");
+  const today = todayIsoDate();
+  const [activeTab, setActiveTab] = useState<"invoices" | "purchases">(
+    "invoices",
+  );
 
   // Invoices state
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [selectedVendorId, setSelectedVendorId] = useState(vendors[0]?.id || "");
+  const [selectedVendorId, setSelectedVendorId] = useState(
+    vendors[0]?.id || "",
+  );
   const [invoiceAmount, setInvoiceAmount] = useState("");
-  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
-  const [invoiceStatus, setInvoiceStatus] = useState<Invoice["status"]>("Pending");
+  const [invoiceDate, setInvoiceDate] = useState(today);
+  const [invoiceStatus, setInvoiceStatus] =
+    useState<Invoice["status"]>("Pending");
   const [searchInvoices, setSearchInvoices] = useState("");
 
   // Purchases state
   const [showPurchaseForm, setShowPurchaseForm] = useState(false);
-  const [purchaseVendorId, setPurchaseVendorId] = useState(vendors[0]?.id || "");
-  const [purchaseQuantities, setPurchaseQuantities] = useState<Record<string, string>>({});
+  const [purchaseVendorId, setPurchaseVendorId] = useState(
+    vendors[0]?.id || "",
+  );
+  const [purchaseQuantities, setPurchaseQuantities] = useState<
+    Record<string, string>
+  >({});
   const [searchPurchases, setSearchPurchases] = useState("");
 
   // Invoices calculation
@@ -56,8 +82,13 @@ export default function PaymentsView({
     .reduce((sum, i) => sum + i.amount, 0);
 
   // Purchases calculation
-  const totalPurchaseAmt = purchases.reduce((sum, prq) => sum + prq.totalAmount, 0);
-  const pendingPurchases = purchases.filter((p) => p.status === "Pending").length;
+  const totalPurchaseAmt = purchases.reduce(
+    (sum, prq) => sum + prq.totalAmount,
+    0,
+  );
+  const pendingPurchases = purchases.filter(
+    (p) => p.status === "Pending",
+  ).length;
 
   const handleAmountChange = (val: string) => {
     // Only allow positive numbers with up to 2 decimal places, block exponent, signs (+, -, e)
@@ -98,6 +129,18 @@ export default function PaymentsView({
     onDeleteInvoice(inv.id);
   };
 
+  const handleDownloadInvoice = async (inv: Invoice) => {
+    try {
+      await sendInvoiceEmail(inv);
+      pushToast("Invoice download request sent");
+    } catch (error) {
+      pushToast(
+        error instanceof Error ? error.message : "Invoice download failed",
+        "error",
+      );
+    }
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const vendor = vendors.find((v) => v.id === selectedVendorId);
@@ -122,7 +165,7 @@ export default function PaymentsView({
   const filteredInvoices = invoices.filter(
     (inv) =>
       inv.vendorName.toLowerCase().includes(searchInvoices.toLowerCase()) ||
-      inv.id.toLowerCase().includes(searchInvoices.toLowerCase())
+      inv.id.toLowerCase().includes(searchInvoices.toLowerCase()),
   );
 
   // Purchases logic
@@ -163,7 +206,10 @@ export default function PaymentsView({
       .filter((i) => i.quantity > 0);
 
     if (orderedItems.length === 0) {
-      pushToast("Select at least one item with a quantity greater than zero.", "error");
+      pushToast(
+        "Select at least one item with a quantity greater than zero.",
+        "error",
+      );
       return;
     }
 
@@ -191,28 +237,31 @@ export default function PaymentsView({
   };
 
   const handlePurchaseStatusToggle = async (req: PurchaseRequest) => {
-    const nextStatusMap: Record<PurchaseRequest["status"], PurchaseRequest["status"]> = {
+    const nextStatusMap: Record<
+      PurchaseRequest["status"],
+      PurchaseRequest["status"]
+    > = {
       Pending: "Approved",
       Approved: "Delivered",
       Rejected: "Pending",
       Delivered: "Pending",
     };
     const nextStatus = nextStatusMap[req.status];
-    
+
     const confirmed = await confirm({
       title: "Update Purchase Request Status",
       message: `Change request status from "${req.status}" to "${nextStatus}"?`,
       confirmLabel: "Update Status",
     });
     if (!confirmed) return;
-    
+
     onUpdatePurchase(req.id, { status: nextStatus });
   };
 
   const filteredPurchases = purchases.filter(
     (prq) =>
       prq.vendorName.toLowerCase().includes(searchPurchases.toLowerCase()) ||
-      prq.id.toLowerCase().includes(searchPurchases.toLowerCase())
+      prq.id.toLowerCase().includes(searchPurchases.toLowerCase()),
   );
 
   return (
@@ -220,12 +269,22 @@ export default function PaymentsView({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
         <h1 className="vms-title mb-0">Finance Portal</h1>
         {activeTab === "invoices" ? (
-          <button type="button" onClick={openCreate} disabled={vendors.length === 0} className="vms-btn-primary">
+          <button
+            type="button"
+            onClick={openCreate}
+            disabled={vendors.length === 0}
+            className="vms-btn-primary"
+          >
             <Plus className="w-4 h-4" aria-hidden="true" />
             Add invoice
           </button>
         ) : (
-          <button type="button" onClick={openPurchaseCreate} disabled={vendors.length === 0} className="vms-btn-primary">
+          <button
+            type="button"
+            onClick={openPurchaseCreate}
+            disabled={vendors.length === 0}
+            className="vms-btn-primary"
+          >
             <ShoppingCart className="w-4 h-4" aria-hidden="true" />
             Request purchase
           </button>
@@ -264,21 +323,35 @@ export default function PaymentsView({
             <span>
               Outstanding:{" "}
               <span className="font-semibold text-ink">
-                ${totalPending.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                $
+                {totalPending.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
               </span>
             </span>
-            <span aria-hidden="true" className="text-border">|</span>
-            <span>
-              Pending: <span className="font-semibold text-ink">{pendingCount}</span>
+            <span aria-hidden="true" className="text-border">
+              |
             </span>
-            <span aria-hidden="true" className="text-border">|</span>
             <span>
-              Overdue: <span className="font-semibold text-danger-ink">{overdueCount}</span>
+              Pending:{" "}
+              <span className="font-semibold text-ink">{pendingCount}</span>
+            </span>
+            <span aria-hidden="true" className="text-border">
+              |
+            </span>
+            <span>
+              Overdue:{" "}
+              <span className="font-semibold text-danger-ink">
+                {overdueCount}
+              </span>
             </span>
           </div>
 
           <div className="relative mb-4 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" aria-hidden="true" />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle"
+              aria-hidden="true"
+            />
             <input
               type="search"
               aria-label="Search invoices"
@@ -290,37 +363,73 @@ export default function PaymentsView({
 
           <div className="vms-panel overflow-hidden">
             {filteredInvoices.length === 0 ? (
-              <p className="vms-empty">
-                {searchInvoices ? "No invoices match your search." : "No invoices on record yet."}
-              </p>
+              <EmptyState
+                title={
+                  searchInvoices
+                    ? "No matching invoices"
+                    : "No invoices on record"
+                }
+                description={
+                  searchInvoices
+                    ? "Try searching by vendor name or invoice ID."
+                    : "Created invoices will appear here for finance tracking."
+                }
+              />
             ) : (
               <div className="vms-table-wrap">
                 <table className="vms-table min-w-[720px]">
                   <thead>
                     <tr className="vms-table-head">
-                      <th scope="col" className="px-6 py-3">Vendor / ID</th>
-                      <th scope="col" className="px-6 py-3">Date</th>
-                      <th scope="col" className="px-6 py-3">Amount</th>
-                      <th scope="col" className="px-6 py-3">Status</th>
-                      <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                      <th scope="col" className="px-6 py-3">
+                        Vendor / ID
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Date
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Amount
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Status
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {filteredInvoices.map((inv) => (
                       <tr key={inv.id} className="vms-table-row">
                         <td className="px-6 py-4 text-sm">
-                          <div className="font-semibold text-ink">{inv.vendorName}</div>
-                          <div className="text-xs text-ink-subtle">{inv.id}</div>
+                          <div className="font-semibold text-ink">
+                            {inv.vendorName}
+                          </div>
+                          <div className="text-xs text-ink-subtle">
+                            {inv.id}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-ink-muted">{inv.date}</td>
+                        <td className="px-6 py-4 text-sm text-ink-muted">
+                          {inv.date}
+                        </td>
                         <td className="px-6 py-4 text-sm font-semibold text-ink">
-                          ${inv.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          $
+                          {inv.amount.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="px-6 py-4">
                           <StatusBadge status={inv.status} />
                         </td>
                         <td className="px-6 py-4 text-right">
                           <div className="flex justify-end gap-1">
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadInvoice(inv)}
+                              aria-label={`Download invoice ${inv.id}`}
+                              className="p-2 text-ink-subtle hover:text-primary rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                            >
+                              <Download className="w-4 h-4" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => openEdit(inv)}
@@ -353,17 +462,26 @@ export default function PaymentsView({
             <span>
               Total Requested:{" "}
               <span className="font-semibold text-ink">
-                ${totalPurchaseAmt.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                $
+                {totalPurchaseAmt.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
               </span>
             </span>
-            <span aria-hidden="true" className="text-border">|</span>
+            <span aria-hidden="true" className="text-border">
+              |
+            </span>
             <span>
-              Pending approval: <span className="font-semibold text-ink">{pendingPurchases}</span>
+              Pending approval:{" "}
+              <span className="font-semibold text-ink">{pendingPurchases}</span>
             </span>
           </div>
 
           <div className="relative mb-4 max-w-sm">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" aria-hidden="true" />
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle"
+              aria-hidden="true"
+            />
             <input
               type="search"
               aria-label="Search purchase requests"
@@ -375,41 +493,74 @@ export default function PaymentsView({
 
           <div className="vms-panel overflow-hidden">
             {filteredPurchases.length === 0 ? (
-              <p className="vms-empty">
-                {searchPurchases ? "No purchase requests match your search." : "No purchase requests on record yet."}
-              </p>
+              <EmptyState
+                title={
+                  searchPurchases
+                    ? "No matching purchase requests"
+                    : "No purchase requests"
+                }
+                description={
+                  searchPurchases
+                    ? "Try searching by vendor name or request ID."
+                    : "Purchase requests created for approved vendors will appear here."
+                }
+              />
             ) : (
               <div className="vms-table-wrap">
                 <table className="vms-table min-w-[720px]">
                   <thead>
                     <tr className="vms-table-head">
-                      <th scope="col" className="px-6 py-3">Vendor / PRQ ID</th>
-                      <th scope="col" className="px-6 py-3">Date</th>
-                      <th scope="col" className="px-6 py-3">Items Requested</th>
-                      <th scope="col" className="px-6 py-3">Total Amount</th>
-                      <th scope="col" className="px-6 py-3">Status</th>
-                      <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                      <th scope="col" className="px-6 py-3">
+                        Vendor / PRQ ID
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Date
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Items Requested
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Total Amount
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        Status
+                      </th>
+                      <th scope="col" className="px-6 py-3 text-right">
+                        Actions
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border-subtle">
                     {filteredPurchases.map((prq) => (
                       <tr key={prq.id} className="vms-table-row">
                         <td className="px-6 py-4 text-sm">
-                          <div className="font-semibold text-ink">{prq.vendorName}</div>
-                          <div className="text-xs text-ink-subtle">{prq.id}</div>
+                          <div className="font-semibold text-ink">
+                            {prq.vendorName}
+                          </div>
+                          <div className="text-xs text-ink-subtle">
+                            {prq.id}
+                          </div>
                         </td>
-                        <td className="px-6 py-4 text-sm text-ink-muted">{prq.date}</td>
+                        <td className="px-6 py-4 text-sm text-ink-muted">
+                          {prq.date}
+                        </td>
                         <td className="px-6 py-4 text-xs text-ink-muted">
                           <ul className="list-disc pl-4 space-y-0.5">
                             {prq.items.map((item, index) => (
                               <li key={index}>
-                                <span className="font-semibold text-ink">{item.name}</span> x {item.quantity} (${item.price})
+                                <span className="font-semibold text-ink">
+                                  {item.name}
+                                </span>{" "}
+                                x {item.quantity} (${item.price})
                               </li>
                             ))}
                           </ul>
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-ink">
-                          ${prq.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                          $
+                          {prq.totalAmount.toLocaleString(undefined, {
+                            minimumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="px-6 py-4">
                           <button
@@ -442,13 +593,20 @@ export default function PaymentsView({
       )}
 
       {/* Invoice modal */}
-      <Modal open={showForm} onClose={() => setShowForm(false)} titleId="invoice-form-title" className="vms-panel p-6 max-w-md w-full shadow-xl">
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        titleId="invoice-form-title"
+        className="vms-panel p-6 max-w-md w-full shadow-xl"
+      >
         <h2 id="invoice-form-title" className="font-bold text-ink mb-4">
           {editingId ? "Edit invoice" : "New invoice"}
         </h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="invoice-vendor" className="vms-label mb-1">Vendor</label>
+            <label htmlFor="invoice-vendor" className="vms-label mb-1">
+              Vendor
+            </label>
             <select
               id="invoice-vendor"
               value={selectedVendorId}
@@ -457,12 +615,16 @@ export default function PaymentsView({
               required
             >
               {vendors.map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
               ))}
             </select>
           </div>
           <div>
-            <label htmlFor="invoice-amount" className="vms-label mb-1">Amount (USD)</label>
+            <label htmlFor="invoice-amount" className="vms-label mb-1">
+              Amount (USD)
+            </label>
             <input
               id="invoice-amount"
               type="text"
@@ -475,22 +637,34 @@ export default function PaymentsView({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label htmlFor="invoice-date" className="vms-label mb-1">Date</label>
+              <label htmlFor="invoice-date" className="vms-label mb-1">
+                Date
+              </label>
               <input
                 id="invoice-date"
                 type="date"
                 value={invoiceDate}
-                onChange={(e) => setInvoiceDate(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value >= today) {
+                    setInvoiceDate(value);
+                  }
+                }}
                 className="vms-input"
+                min={today}
                 required
               />
             </div>
             <div>
-              <label htmlFor="invoice-status" className="vms-label mb-1">Status</label>
+              <label htmlFor="invoice-status" className="vms-label mb-1">
+                Status
+              </label>
               <select
                 id="invoice-status"
                 value={invoiceStatus}
-                onChange={(e) => setInvoiceStatus(e.target.value as Invoice["status"])}
+                onChange={(e) =>
+                  setInvoiceStatus(e.target.value as Invoice["status"])
+                }
                 className="vms-input"
               >
                 <option value="Pending">Pending</option>
@@ -500,7 +674,11 @@ export default function PaymentsView({
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowForm(false)} className="vms-btn-secondary">
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="vms-btn-secondary"
+            >
               Cancel
             </button>
             <button type="submit" className="vms-btn-primary">
@@ -511,14 +689,24 @@ export default function PaymentsView({
       </Modal>
 
       {/* Purchase Request Modal */}
-      <Modal open={showPurchaseForm} onClose={() => setShowPurchaseForm(false)} titleId="purchase-form-title" className="vms-panel p-6 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto">
-        <h2 id="purchase-form-title" className="font-bold text-ink mb-4 flex items-center gap-2">
+      <Modal
+        open={showPurchaseForm}
+        onClose={() => setShowPurchaseForm(false)}
+        titleId="purchase-form-title"
+        className="vms-panel p-6 max-w-lg w-full shadow-xl max-h-[90vh] overflow-y-auto"
+      >
+        <h2
+          id="purchase-form-title"
+          className="font-bold text-ink mb-4 flex items-center gap-2"
+        >
           <ShoppingCart className="w-5 h-5 text-primary" />
           <span>Request Purchase</span>
         </h2>
         <form onSubmit={handlePurchaseSubmit} className="space-y-4">
           <div>
-            <label htmlFor="purchase-vendor" className="vms-label mb-1">Vendor *</label>
+            <label htmlFor="purchase-vendor" className="vms-label mb-1">
+              Vendor *
+            </label>
             <select
               id="purchase-vendor"
               value={purchaseVendorId}
@@ -530,7 +718,9 @@ export default function PaymentsView({
               required
             >
               {vendors.map((v) => (
-                <option key={v.id} value={v.id}>{v.name}</option>
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                </option>
               ))}
             </select>
           </div>
@@ -538,23 +728,40 @@ export default function PaymentsView({
           <div className="space-y-3 pt-2">
             <label className="vms-label">Catalog Items</label>
             {purchaseItemsCatalog.length === 0 ? (
-              <p className="text-sm text-ink-muted italic py-3">This vendor has no catalog items listed.</p>
+              <p className="text-sm text-ink-muted italic py-3">
+                This vendor has no catalog items listed.
+              </p>
             ) : (
               <div className="space-y-2 border border-border-subtle rounded-xl p-3 bg-surface-muted max-h-[280px] overflow-y-auto">
                 {purchaseItemsCatalog.map((item) => (
-                  <div key={item.name} className="flex items-center justify-between gap-4 p-2.5 bg-surface border border-border-subtle rounded-lg">
+                  <div
+                    key={item.name}
+                    className="flex items-center justify-between gap-4 p-2.5 bg-surface border border-border-subtle rounded-lg"
+                  >
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-ink truncate">{item.name}</p>
-                      <p className="text-xs text-primary font-bold mt-0.5">${item.price.toFixed(2)}</p>
-                      {item.description && <p className="text-[11px] text-ink-subtle mt-0.5 truncate">{item.description}</p>}
+                      <p className="text-sm font-semibold text-ink truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-xs text-primary font-bold mt-0.5">
+                        ${item.price.toFixed(2)}
+                      </p>
+                      {item.description && (
+                        <p className="text-[11px] text-ink-subtle mt-0.5 truncate">
+                          {item.description}
+                        </p>
+                      )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs text-ink-muted font-medium">Qty:</span>
+                      <span className="text-xs text-ink-muted font-medium">
+                        Qty:
+                      </span>
                       <input
                         type="text"
                         inputMode="numeric"
                         value={purchaseQuantities[item.name] || ""}
-                        onChange={(e) => handleQuantityChange(item.name, e.target.value)}
+                        onChange={(e) =>
+                          handleQuantityChange(item.name, e.target.value)
+                        }
                         className="w-16 px-2 py-1 text-center bg-surface border border-border rounded-lg text-sm outline-none focus:border-primary"
                       />
                     </div>
@@ -566,14 +773,29 @@ export default function PaymentsView({
 
           <div className="flex items-center justify-between border-t border-border pt-4">
             <div>
-              <span className="text-xs font-bold text-ink-subtle uppercase tracking-wider">Estimated Total</span>
-              <p className="text-xl font-extrabold text-ink">${purchaseTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+              <span className="text-xs font-bold text-ink-subtle uppercase tracking-wider">
+                Estimated Total
+              </span>
+              <p className="text-xl font-extrabold text-ink">
+                $
+                {purchaseTotal.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                })}
+              </p>
             </div>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setShowPurchaseForm(false)} className="vms-btn-secondary">
+              <button
+                type="button"
+                onClick={() => setShowPurchaseForm(false)}
+                className="vms-btn-secondary"
+              >
                 Cancel
               </button>
-              <button type="submit" disabled={purchaseTotal === 0} className="vms-btn-primary whitespace-nowrap">
+              <button
+                type="submit"
+                disabled={purchaseTotal === 0}
+                className="vms-btn-primary whitespace-nowrap"
+              >
                 Submit request
               </button>
             </div>

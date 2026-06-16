@@ -10,8 +10,12 @@ import {
   KeyRound,
 } from "lucide-react";
 import Modal from "./Modal.jsx";
-import { UserInfo, UserRole } from "../types.js";
-import { ROLE_LABELS } from "../config/roles.js";
+import { UserInfo } from "../types.js";
+import {
+  getPasswordStrength,
+  validateStrongPassword,
+} from "../utils/password.js";
+import { keepCaretAtEnd } from "../utils/inputCaret.js";
 interface LoginViewProps {
   onLoginSuccess: (user: UserInfo) => void;
   onRegisterVendor: () => void;
@@ -21,7 +25,6 @@ export default function LoginView({
   onLoginSuccess,
   onRegisterVendor,
 }: LoginViewProps) {
-  const [role, setRole] = useState<UserRole>("Admin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -40,10 +43,14 @@ export default function LoginView({
   const [forgotError, setForgotError] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState("");
 
-  const handleRoleChange = (selectedRole: UserRole) => {
-    setRole(selectedRole);
-    setError("");
-  };
+  const forgotPasswordStrength = getPasswordStrength(forgotNewPassword);
+  const forgotPasswordStrengthClass = [
+    "text-ink-subtle",
+    "text-danger-ink",
+    "text-danger-ink",
+    "text-primary",
+    "text-success-ink",
+  ][forgotPasswordStrength.score];
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -54,16 +61,14 @@ export default function LoginView({
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
+        body: JSON.stringify({ email, password }),
       });
 
       if (response.ok) {
         const data = await response.json();
         onLoginSuccess(data.user);
       } else {
-        setError(
-          "Invalid credentials. Check your email, password, and selected role.",
-        );
+        setError("Invalid credentials. Check your email and password.");
       }
     } catch {
       setError(
@@ -80,15 +85,10 @@ export default function LoginView({
     setForgotError("");
     setForgotSuccess("");
 
-    if (role === "Admin") {
-      setForgotError("Admin password reset is not available");
-      return;
-    }
-
     const response = await fetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: forgotEmail, role }),
+      body: JSON.stringify({ email: forgotEmail }),
     });
 
     if (response.ok) {
@@ -109,8 +109,9 @@ export default function LoginView({
       return;
     }
 
-    if (forgotNewPassword.length < 6) {
-      setForgotError("Password must be at least 6 characters");
+    const passwordError = validateStrongPassword(forgotNewPassword, "Password");
+    if (passwordError) {
+      setForgotError(passwordError);
       return;
     }
 
@@ -172,29 +173,6 @@ export default function LoginView({
           </header>
 
           <div className="vms-panel p-8 shadow-md">
-            <div
-              className="flex p-1 bg-surface-muted rounded-xl mb-6"
-              role="radiogroup"
-              aria-label="Select role"
-            >
-              {(["Admin", "FinancialManager", "Vendor"] as const).map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  role="radio"
-                  aria-checked={role === r}
-                  onClick={() => handleRoleChange(r)}
-                  className={`flex-1 py-2 text-xs text-center font-semibold rounded-lg transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                    role === r
-                      ? "bg-surface text-ink shadow-xs"
-                      : "text-ink-subtle hover:bg-surface/80"
-                  }`}
-                >
-                  {ROLE_LABELS[r]}
-                </button>
-              ))}
-            </div>
-
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1">
                 <label htmlFor="login-email" className="vms-label">
@@ -230,6 +208,8 @@ export default function LoginView({
                     id="login-password"
                     type={showPassword ? "text" : "password"}
                     required
+                    minLength={8}
+                    maxLength={128}
                     autoComplete="current-password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -273,7 +253,7 @@ export default function LoginView({
                   </>
                 ) : (
                   <>
-                    <span>Sign in as {ROLE_LABELS[role]}</span>
+                    <span>Sign in</span>
                     <ArrowRight className="w-4 h-4" aria-hidden="true" />
                   </>
                 )}
@@ -327,6 +307,7 @@ export default function LoginView({
                 id="forgot-email"
                 type="email"
                 required
+                maxLength={254}
                 value={forgotEmail}
                 onChange={(e) => setForgotEmail(e.target.value)}
                 className="vms-input"
@@ -368,13 +349,16 @@ export default function LoginView({
                 id="forgot-otp"
                 type="text"
                 required
-                maxLength={6}
                 value={forgotOtp}
-                onChange={(e) =>
-                  setForgotOtp(e.target.value.replace(/\D/g, ""))
-                }
+                onChange={(e) => {
+                  setForgotOtp(e.target.value.slice(0, 8));
+                  keepCaretAtEnd(e);
+                }}
                 className="vms-input"
-                placeholder="Enter 6-digit code"
+                placeholder="Enter 8-character OTP"
+                autoComplete="one-time-code"
+                inputMode="text"
+                maxLength={8}
               />
             </div>
             <div>
@@ -385,12 +369,30 @@ export default function LoginView({
                 id="forgot-new-password"
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
+                maxLength={128}
                 value={forgotNewPassword}
-                onChange={(e) => setForgotNewPassword(e.target.value)}
+                onChange={(e) => {
+                  setForgotNewPassword(e.target.value);
+                  keepCaretAtEnd(e);
+                }}
                 className="vms-input"
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
+            {forgotNewPassword && (
+              <p className="text-xs text-ink-muted">
+                Password strength:{" "}
+                <span
+                  className={`font-semibold ${forgotPasswordStrengthClass}`}
+                >
+                  {forgotPasswordStrength.label}
+                </span>
+              </p>
+            )}
             <div>
               <label htmlFor="forgot-confirm-password" className="vms-label">
                 Confirm Password
@@ -399,10 +401,18 @@ export default function LoginView({
                 id="forgot-confirm-password"
                 type="password"
                 required
-                minLength={6}
+                minLength={8}
+                maxLength={128}
                 value={forgotConfirmPassword}
-                onChange={(e) => setForgotConfirmPassword(e.target.value)}
+                onChange={(e) => {
+                  setForgotConfirmPassword(e.target.value);
+                  keepCaretAtEnd(e);
+                }}
                 className="vms-input"
+                autoComplete="new-password"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
               />
             </div>
             {forgotError && (

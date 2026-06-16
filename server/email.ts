@@ -1,9 +1,9 @@
 import emailjs, { EmailJSResponseStatus } from "@emailjs/nodejs";
+import { randomBytes } from "node:crypto";
 
 function getEmailConfig() {
   return {
-    serviceId:
-      process.env.EMAILJS_SERVICE_ID || "vendor_registratiion999",
+    serviceId: process.env.EMAILJS_SERVICE_ID || "vendor_registratiion999",
     publicKey: process.env.EMAILJS_PUBLIC_KEY || "fBL0yqKEJrRIZNyvL",
     privateKey: process.env.EMAILJS_PRIVATE_KEY || "",
     onboardingTemplateId:
@@ -15,8 +15,34 @@ function getEmailConfig() {
   };
 }
 
+const OTP_UPPER = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+const OTP_LOWER = "abcdefghijkmnopqrstuvwxyz";
+const OTP_DIGITS = "23456789";
+const OTP_SYMBOLS = "!@#$%^&*";
+
+function randomChar(chars: string): string {
+  return chars[randomBytes(1)[0] % chars.length];
+}
+
+function shuffleOTP(chars: string[]): string {
+  for (let index = chars.length - 1; index > 0; index -= 1) {
+    const swapIndex = randomBytes(1)[0] % (index + 1);
+    [chars[index], chars[swapIndex]] = [chars[swapIndex], chars[index]];
+  }
+  return chars.join("");
+}
+
 export function generateOTP(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  return shuffleOTP([
+    randomChar(OTP_UPPER),
+    randomChar(OTP_LOWER),
+    randomChar(OTP_DIGITS),
+    randomChar(OTP_SYMBOLS),
+    randomChar(OTP_DIGITS),
+    randomChar(OTP_DIGITS),
+    randomChar(OTP_DIGITS),
+    randomChar(OTP_DIGITS),
+  ]);
 }
 
 async function sendTemplateEmail(
@@ -38,11 +64,22 @@ async function sendTemplateEmail(
 
   const templateParams: Record<string, string> = {
     passcode: otp,
+    otp: otp,
+    otpCode: otp,
+    otp_code: otp,
+    code: otp,
+    one_time_password: otp,
+    oneTimePassword: otp,
+    temporaryPassword: otp,
+    temp_password: otp,
     time: expiryTime,
     toemail: toEmail,
     toEmail,
     to_email: toEmail,
-    otp_code: otp,
+    email: toEmail,
+    userEmail: toEmail,
+    user_email: toEmail,
+    recipient: toEmail,
     [recipientParam]: toEmail,
     ...extraParams,
   };
@@ -68,11 +105,14 @@ async function sendTemplateEmail(
 /** Registration approved — onboarding OTP email */
 export async function sendCredentialsEmail(
   toEmail: string,
-  _toName: string,
+  toName: string,
   otp: string,
 ) {
   const { onboardingTemplateId } = getEmailConfig();
-  await sendTemplateEmail(toEmail, otp, onboardingTemplateId, "toemail");
+  await sendTemplateEmail(toEmail, otp, onboardingTemplateId, "toemail", {
+    username: toName,
+    to_name: toName,
+  });
 }
 
 /** Forgot password — reset OTP email */
@@ -84,5 +124,6 @@ export async function sendResetPasswordEmail(
   const { resetTemplateId } = getEmailConfig();
   await sendTemplateEmail(toEmail, otp, resetTemplateId, "toEmail", {
     username: toName,
+    to_name: toName,
   });
 }

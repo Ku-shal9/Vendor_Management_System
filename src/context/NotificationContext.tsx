@@ -62,9 +62,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           }),
         });
         setNotifications((prev) =>
-          prev.map((n) =>
-            notificationIds.includes(n.id) ? { ...n, read: true } : n,
-          ),
+          prev.filter((n) => !notificationIds.includes(n.id)),
         );
       } catch (err) {
         console.error("Failed to mark notifications as read:", err);

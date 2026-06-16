@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Search } from "lucide-react";
 import { Bill } from "../types.js";
+import EmptyState from "./EmptyState.jsx";
 import StatusBadge from "./StatusBadge.jsx";
 
 interface BillingViewProps {
@@ -12,7 +13,9 @@ export default function BillingView({ bills }: BillingViewProps) {
   const [search, setSearch] = useState("");
 
   const filtered = bills
-    .filter((b) => (activeTab === "due" ? b.status === "Due" : b.status === "Paid"))
+    .filter((b) =>
+      activeTab === "due" ? b.status === "Due" : b.status === "Paid",
+    )
     .filter(
       (b) =>
         b.vendorName.toLowerCase().includes(search.toLowerCase()) ||
@@ -66,19 +69,38 @@ export default function BillingView({ bills }: BillingViewProps) {
 
       <div className="vms-panel overflow-hidden">
         {filtered.length === 0 ? (
-          <p className="vms-empty">No {activeTab} bills.</p>
+          <EmptyState
+            title={activeTab === "due" ? "No due bills" : "No paid bills"}
+            description={
+              activeTab === "due"
+                ? "Bills marked due will appear here when purchase requests are delivered."
+                : "Paid bills and their invoice references will appear here after payment."
+            }
+          />
         ) : (
           <div className="vms-table-wrap">
             <table className="vms-table min-w-[720px]">
               <thead>
                 <tr className="vms-table-head">
-                  <th scope="col" className="px-6 py-3">Vendor / Bill</th>
-                  <th scope="col" className="px-6 py-3">PRQ</th>
-                  <th scope="col" className="px-6 py-3">Date</th>
-                  <th scope="col" className="px-6 py-3">Amount</th>
-                  <th scope="col" className="px-6 py-3">Status</th>
+                  <th scope="col" className="px-6 py-3">
+                    Vendor / Bill
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    PRQ
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Date
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Amount
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Status
+                  </th>
                   {activeTab === "paid" && (
-                    <th scope="col" className="px-6 py-3">Invoice</th>
+                    <th scope="col" className="px-6 py-3">
+                      Invoice
+                    </th>
                   )}
                 </tr>
               </thead>
@@ -86,19 +108,30 @@ export default function BillingView({ bills }: BillingViewProps) {
                 {filtered.map((bill) => (
                   <tr key={bill.id} className="vms-table-row">
                     <td className="px-6 py-4 text-sm">
-                      <div className="font-semibold text-ink">{bill.vendorName}</div>
+                      <div className="font-semibold text-ink">
+                        {bill.vendorName}
+                      </div>
                       <div className="text-xs text-ink-subtle">{bill.id}</div>
                     </td>
-                    <td className="px-6 py-4 text-sm text-ink-muted">{bill.purchaseRequestId}</td>
-                    <td className="px-6 py-4 text-sm text-ink-muted">{bill.date}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {bill.purchaseRequestId}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {bill.date}
+                    </td>
                     <td className="px-6 py-4 text-sm font-semibold text-ink">
-                      ${bill.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      $
+                      {bill.amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                     </td>
                     <td className="px-6 py-4">
                       <StatusBadge status={bill.status} />
                     </td>
                     {activeTab === "paid" && (
-                      <td className="px-6 py-4 text-sm text-ink-muted">{bill.invoiceId || "—"}</td>
+                      <td className="px-6 py-4 text-sm text-ink-muted">
+                        {bill.invoiceId || "—"}
+                      </td>
                     )}
                   </tr>
                 ))}

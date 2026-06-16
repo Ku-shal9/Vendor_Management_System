@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
@@ -84,11 +84,17 @@ body {
   color: var(--vms-ink);
   margin: 0;
   padding: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 @layer components {
   .vms-page {
     @apply max-w-[1200px] mx-auto px-4 py-8 pb-24 md:pb-12;
+  }
+
+  .vms-page-header {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-6 mb-6;
   }
 
   .vms-page-narrow {
@@ -108,15 +114,23 @@ body {
   }
 
   .vms-panel-header {
+    @apply px-6 py-5 border-b border-border-subtle;
+  }
+
+  .vms-panel-header {
     @apply p-6 border-b border-border-subtle;
   }
 
   .vms-summary-bar {
-    @apply flex flex-wrap items-center gap-x-6 gap-y-2 mb-8 text-sm text-ink-muted border-b border-border pb-4;
+    @apply flex flex-wrap items-center gap-x-6 gap-y-3 mb-8 text-sm text-ink-muted border-b border-border pb-4;
   }
 
   .vms-input {
-    @apply w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-ink outline-none transition-colors focus:ring-2 focus:ring-primary/25 focus:border-primary;
+    @apply w-full px-4 py-2.5 bg-surface border border-border rounded-xl text-sm text-ink outline-none transition-[border-color,box-shadow,background-color] focus:ring-2 focus:ring-primary/25 focus:border-primary disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .vms-input::placeholder {
+    @apply text-ink-subtle;
   }
 
   .vms-label {
@@ -124,15 +138,15 @@ body {
   }
 
   .vms-btn-primary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl hover:bg-primary-hover disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-white text-sm font-semibold rounded-xl shadow-xs hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors;
   }
 
   .vms-btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border text-ink-muted text-sm font-semibold rounded-xl hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-surface border border-border text-ink-muted text-sm font-semibold rounded-xl hover:bg-surface-muted hover:text-ink disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary transition-colors;
   }
 
   .vms-btn-danger {
-    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-danger-ink text-white text-sm font-semibold rounded-xl hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-ink transition-opacity;
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-danger-ink text-white text-sm font-semibold rounded-xl hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-danger-ink transition-opacity;
   }
 
   .vms-table-wrap {
@@ -140,15 +154,27 @@ body {
   }
 
   .vms-table {
-    @apply w-full text-left min-w-[640px];
+    @apply w-full text-left min-w-[640px] border-separate border-spacing-0;
   }
 
   .vms-table-head {
-    @apply bg-surface-muted text-xs font-bold text-ink-subtle uppercase;
+    @apply bg-surface-muted text-[11px] font-bold text-ink-subtle uppercase tracking-wide;
+  }
+
+  .vms-table-head th {
+    @apply border-b border-border-subtle px-6 py-3 whitespace-nowrap;
   }
 
   .vms-table-row {
     @apply hover:bg-surface-muted transition-colors;
+  }
+
+  .vms-table-row td {
+    @apply border-b border-border-subtle align-middle;
+  }
+
+  .vms-table-row:last-child td {
+    @apply border-b-0;
   }
 
   .vms-link {
@@ -156,7 +182,7 @@ body {
   }
 
   .vms-empty {
-    @apply px-6 py-10 text-sm text-ink-muted text-center;
+    @apply flex flex-col items-center justify-center px-6 py-12 text-center border-b border-border-subtle bg-surface-muted/40;
   }
 
   .vms-alert-error {

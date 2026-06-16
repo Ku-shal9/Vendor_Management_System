@@ -3,6 +3,12 @@ import "./server/env.js";
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
+import {
+  hashPassword,
+  type PasswordRecord,
+  verifyPassword,
+  withoutPassword,
+} from "./server/auth.js";
 import { connectToDatabase, getDb } from "./server/db.js";
 import {
   saveRegistrationDocument,
@@ -28,6 +34,41 @@ import {
   sendCredentialsEmail,
   sendResetPasswordEmail,
 } from "./server/email.js";
+import {
+  badRequest,
+  billStatuses,
+  firstError,
+  getBody,
+  invoiceStatuses,
+  notificationTypes,
+  purchaseStatuses,
+  validateOtp,
+  validatePurchaseItems,
+  validateRegistrationContact,
+  validateVendorItems,
+  validateSearch,
+  validateStatus,
+  validateTodayOrFutureDate,
+} from "./server/apiValidation.js";
+import { validateStrongPassword } from "./src/utils/password.js";
+import {
+  documentMimeTypes,
+  isRecord,
+  parseMoney,
+  todayIsoDate,
+  validateBase64Document,
+  validateDate,
+  validateEmail,
+  validateFilename,
+  validateId,
+  validateMimeType,
+  validateMoney,
+  validateOptionalText,
+  validatePassword,
+  validatePhone,
+  validateQuantity,
+  validateRequiredText,
+} from "./src/utils/validation.js";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -35,7 +76,10 @@ const PORT = Number(process.env.PORT) || 3000;
 app.use(express.json());
 
 function slugId(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+    .slice(0, 80);
 }
 
 function formatDate(): string {
@@ -56,15 +100,24 @@ function generatePassword(): string {
 // Auth
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { email, password, role } = req.body;
-    const user = await getDb()
-      .collection("users")
-      .findOne({ email, password, role });
-    if (!user) {
-      return res.status(401).json({ error: "Invalid credentials or role." });
+    const body = getBody(req);
+    const { email, password } = body;
+    if (typeof email !== "string" || typeof password !== "string") {
+      return badRequest(res, "Email and password are required");
     }
-    const { password: _, _id, ...safeUser } = user;
-    res.json({ user: safeUser });
+
+    const emailError = validateEmail(email);
+    const passwordError = validatePassword(password);
+    if (emailError || passwordError) {
+      return badRequest(res, emailError || passwordError || "Invalid request");
+    }
+
+    const user = await getDb().collection("users").findOne({ email });
+    if (!user || !verifyPassword(user as PasswordRecord, password)) {
+      return res.status(401).json({ error: "Invalid credentials." });
+    }
+
+    res.json({ user: withoutPassword(user) });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Login failed." });
@@ -78,6 +131,9 @@ app.get("/api/vendors", async (_req, res) => {
 });
 
 app.get("/api/vendors/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Vendor ID");
+  if (idError) return badRequest(res, idError);
+
   const vendor = await getDb()
     .collection<Vendor>("vendors")
     .findOne({ id: req.params.id });
@@ -86,25 +142,103 @@ app.get("/api/vendors/:id", async (req, res) => {
 });
 
 app.post("/api/vendors", async (req, res) => {
+  const body = getBody(req);
+  const name = validateRequiredText(body.name, "Company legal name", {
+    max: 120,
+  });
+  const category = validateRequiredText(body.category, "Business category", {
+    max: 80,
+  });
+  const accountManager = validateRequiredText(
+    body.accountManager,
+    "Account manager",
+    { max: 120 },
+  );
+  const email = validateEmail(body.email, "Corporate billing email");
+  const phone = validatePhone(body.phone, true);
+  const address = validateRequiredText(body.address, "Office address", {
+    max: 300,
+  });
+  const error = firstError(
+    name,
+    category,
+    accountManager,
+    email,
+    phone,
+    address,
+  );
+  if (error) return badRequest(res, error);
+
   const newVendor: Vendor = {
-    id: slugId(req.body.name || "vendor"),
-    name: req.body.name,
-    category: req.body.category || "General",
-    accountManager: req.body.accountManager || "Assigned Manager",
-    email: req.body.email || "contact@vendor.com",
-    phone: req.body.phone || "+1 (555) 000-0000",
-    address: req.body.address || "Main Headquarters",
+    id: slugId(name as string),
+    name: name as string,
+    category: category as string,
+    accountManager: accountManager as string,
+    email: String(body.email).trim(),
+    phone: String(body.phone).trim(),
+    address: address as string,
   };
   await getDb().collection("vendors").insertOne(newVendor);
   res.status(201).json({ vendor: newVendor });
 });
 
 app.put("/api/vendors/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Vendor ID");
+  if (idError) return badRequest(res, idError);
+
+  const body = getBody(req);
+  const updates: Partial<Vendor> = {};
+  if (body.name !== undefined) {
+    const name = validateRequiredText(body.name, "Company legal name", {
+      max: 120,
+    });
+    if (name) return badRequest(res, name);
+    updates.name = String(body.name).trim();
+  }
+  if (body.category !== undefined) {
+    const category = validateRequiredText(body.category, "Business category", {
+      max: 80,
+    });
+    if (category) return badRequest(res, category);
+    updates.category = String(body.category).trim();
+  }
+  if (body.accountManager !== undefined) {
+    const accountManager = validateRequiredText(
+      body.accountManager,
+      "Account manager",
+      { max: 120 },
+    );
+    if (accountManager) return badRequest(res, accountManager);
+    updates.accountManager = String(body.accountManager).trim();
+  }
+  if (body.email !== undefined) {
+    const email = validateEmail(body.email, "Corporate billing email");
+    if (email) return badRequest(res, email);
+    updates.email = String(body.email).trim();
+  }
+  if (body.phone !== undefined) {
+    const phone = validatePhone(body.phone, true);
+    if (phone) return badRequest(res, phone);
+    updates.phone = String(body.phone).trim();
+  }
+  if (body.address !== undefined) {
+    const address = validateRequiredText(body.address, "Office address", {
+      max: 300,
+    });
+    if (address) return badRequest(res, address);
+    updates.address = String(body.address).trim();
+  }
+  if (body.items !== undefined) {
+    const itemsResult = validateVendorItems(body.items);
+    if (typeof itemsResult === "string") return badRequest(res, itemsResult);
+    updates.items = itemsResult.items;
+  }
+
   const result = await getDb()
     .collection<Vendor>("vendors")
     .findOneAndUpdate(
       { id: req.params.id },
-      { $set: req.body },
+      { $set: updates },
       { returnDocument: "after" },
     );
   if (!result) return res.status(404).json({ error: "Vendor not found" });
@@ -112,6 +246,9 @@ app.put("/api/vendors/:id", async (req, res) => {
 });
 
 app.delete("/api/vendors/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Vendor ID");
+  if (idError) return badRequest(res, idError);
+
   const result = await getDb()
     .collection("vendors")
     .deleteOne({ id: req.params.id });
@@ -131,51 +268,103 @@ app.get("/api/payments", async (_req, res) => {
 });
 
 app.post("/api/invoices", async (req, res) => {
+  const body = getBody(req);
+  const vendorId = validateId(body.vendorId, "Vendor ID");
+  const amountError = validateMoney(body.amount);
+  const date = validateTodayOrFutureDate(body.date, "Invoice date");
+  const status = validateStatus(
+    body.status ?? "Pending",
+    invoiceStatuses,
+    "Invoice status",
+  );
+  const invoiceStatusError = status ? null : `Invalid invoice status`;
+  const error = firstError(vendorId, amountError, date, invoiceStatusError);
+  if (error) return badRequest(res, error);
+
   const vendor = await getDb()
     .collection<Vendor>("vendors")
-    .findOne({ id: req.body.vendorId });
+    .findOne({ id: String(body.vendorId).trim() });
+  if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+
+  const invoiceId = body.id
+    ? validateId(body.id, "Invoice ID")
+    : `INV-${Date.now().toString().slice(-6)}`;
+  if (body.id && !invoiceId) return badRequest(res, "Invalid invoice ID");
+
   const newInvoice: Invoice = {
-    id: req.body.id || `INV-${Date.now().toString().slice(-6)}`,
-    vendorId: req.body.vendorId,
-    vendorName: vendor?.name || req.body.vendorName || "Unknown",
-    amount: parseFloat(req.body.amount),
-    date: req.body.date || new Date().toISOString().split("T")[0],
-    status: req.body.status || "Pending",
+    id: invoiceId as string,
+    vendorId: String(body.vendorId).trim(),
+    vendorName: vendor.name,
+    amount: parseMoney(body.amount) as number,
+    date: String(body.date ?? todayIsoDate()).trim(),
+    status: status as Invoice["status"],
   };
   await getDb().collection("invoices").insertOne(newInvoice);
 
-  // Create notification for specific vendor user
-  if (vendor) {
-    const vendorUser = await getDb()
-      .collection("users")
-      .findOne({ vendorId: vendor.id });
-    if (vendorUser) {
-      const notification: Notification = {
-        id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
-        userId: vendorUser.email,
-        type: "invoice_created",
-        message: `New invoice #${newInvoice.id} created for $${newInvoice.amount.toFixed(2)}`,
-        read: false,
-        createdAt: new Date().toISOString(),
-        metadata: {
-          vendorName: vendor.name,
-          invoiceId: newInvoice.id,
-          invoiceAmount: newInvoice.amount,
-        },
-      };
-      await getDb().collection("notifications").insertOne(notification);
-    }
+  const vendorUser = await getDb()
+    .collection("users")
+    .findOne({ vendorId: vendor.id });
+  if (vendorUser) {
+    const notification: Notification = {
+      id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
+      userId: vendorUser.email,
+      type: "invoice_created",
+      message: `New invoice #${newInvoice.id} created for $${newInvoice.amount.toFixed(2)}`,
+      read: false,
+      createdAt: new Date().toISOString(),
+      metadata: {
+        vendorName: vendor.name,
+        invoiceId: newInvoice.id,
+        invoiceAmount: newInvoice.amount,
+      },
+    };
+    await getDb().collection("notifications").insertOne(notification);
   }
 
   res.status(201).json({ invoice: newInvoice });
 });
 
 app.put("/api/invoices/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Invoice ID");
+  if (idError) return badRequest(res, idError);
+
+  const body = getBody(req);
+  const updates: Partial<Invoice> = {};
+  if (body.vendorId !== undefined) {
+    const vendorId = validateId(body.vendorId, "Vendor ID");
+    if (vendorId) return badRequest(res, vendorId);
+    const vendor = await getDb()
+      .collection<Vendor>("vendors")
+      .findOne({ id: String(body.vendorId).trim() });
+    if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+    updates.vendorId = String(body.vendorId).trim();
+    updates.vendorName = vendor.name;
+  }
+  if (body.amount !== undefined) {
+    const amountError = validateMoney(body.amount);
+    if (amountError) return badRequest(res, amountError);
+    updates.amount = parseMoney(body.amount) as number;
+  }
+  if (body.date !== undefined) {
+    const date = validateDate(body.date, { allowPast: false });
+    if (date) return badRequest(res, date);
+    updates.date = String(body.date).trim();
+  }
+  if (body.status !== undefined) {
+    const status = validateStatus(
+      body.status,
+      invoiceStatuses,
+      "Invoice status",
+    );
+    if (!status) return badRequest(res, "Invalid invoice status");
+    updates.status = status;
+  }
+
   const result = await getDb()
     .collection<Invoice>("invoices")
     .findOneAndUpdate(
       { id: req.params.id },
-      { $set: req.body },
+      { $set: updates },
       { returnDocument: "after" },
     );
   if (!result) return res.status(404).json({ error: "Invoice not found" });
@@ -183,6 +372,9 @@ app.put("/api/invoices/:id", async (req, res) => {
 });
 
 app.delete("/api/invoices/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Invoice ID");
+  if (idError) return badRequest(res, idError);
+
   const result = await getDb()
     .collection("invoices")
     .deleteOne({ id: req.params.id });
@@ -202,6 +394,9 @@ app.get("/api/bills", async (_req, res) => {
 });
 
 app.post("/api/bills/:id/pay", async (req, res) => {
+  const idError = validateId(req.params.id, "Bill ID");
+  if (idError) return badRequest(res, idError);
+
   const bill = await getDb()
     .collection<Bill>("bills")
     .findOne({ id: req.params.id });
@@ -210,6 +405,11 @@ app.post("/api/bills/:id/pay", async (req, res) => {
   if (bill.status === "Paid") {
     return res.status(400).json({ error: "Bill already paid" });
   }
+  if (!validateStatus(bill.status, billStatuses, "Bill status")) {
+    return res.status(400).json({ error: "Invalid bill status" });
+  }
+  const amountError = validateMoney(bill.amount);
+  if (amountError) return badRequest(res, amountError);
 
   const payment = await simulateStripePayment(bill.amount);
   if (!payment.success) {
@@ -265,60 +465,97 @@ app.get("/api/registrations", async (_req, res) => {
 });
 
 app.post("/api/registrations", async (req, res) => {
+  const body = getBody(req);
+  const registrationContact = validateRegistrationContact(body);
+  if (registrationContact.error)
+    return badRequest(res, registrationContact.error);
+
   const count = await getDb().collection("registrations").countDocuments();
   const regId = `REG-${String(count + 1).padStart(3, "0")}`;
+  const documentsBase64 = isRecord(body.documentsBase64)
+    ? body.documentsBase64
+    : {};
+  const license = isRecord(documentsBase64.license)
+    ? documentsBase64.license
+    : {};
+  const w9 = isRecord(documentsBase64.w9) ? documentsBase64.w9 : {};
+
+  const licenseData = validateBase64Document(license.data, "Business license");
+  const licenseName = validateFilename(
+    license.name,
+    "Business license filename",
+  );
+  const licenseMime = validateMimeType(
+    license.mimeType,
+    documentMimeTypes,
+    "Business license",
+  );
+  const w9Data = validateBase64Document(w9.data, "W-9 document");
+  const w9Name = validateFilename(w9.name, "W-9 filename");
+  const w9Mime = validateMimeType(
+    w9.mimeType,
+    documentMimeTypes,
+    "W-9 document",
+  );
+  const documentError = firstError(
+    licenseData,
+    licenseName,
+    licenseMime,
+    w9Data,
+    w9Name,
+    w9Mime,
+  );
+  if (documentError) return badRequest(res, documentError);
 
   const documents: Registration["documents"] = {};
-  const { documentsBase64, ...registrationBody } = req.body;
-
-  if (documentsBase64?.license?.data) {
-    const saved = await saveRegistrationDocument(
-      regId,
-      "license",
-      documentsBase64.license,
-    );
-    documents.license = saved.filename;
-  } else if (registrationBody.documents?.license) {
-    documents.license = registrationBody.documents.license;
-  }
-
-  if (documentsBase64?.w9?.data) {
-    const saved = await saveRegistrationDocument(
-      regId,
-      "w9",
-      documentsBase64.w9,
-    );
-    documents.w9 = saved.filename;
-  } else if (registrationBody.documents?.w9) {
-    documents.w9 = registrationBody.documents.w9;
+  try {
+    const savedLicense = await saveRegistrationDocument(regId, "license", {
+      name: String(license.name).trim(),
+      data: String(license.data).trim(),
+      mimeType: String(license.mimeType).trim(),
+    });
+    const savedW9 = await saveRegistrationDocument(regId, "w9", {
+      name: String(w9.name).trim(),
+      data: String(w9.data).trim(),
+      mimeType: String(w9.mimeType).trim(),
+    });
+    documents.license = savedLicense.filename;
+    documents.w9 = savedW9.filename;
+  } catch (err) {
+    console.error("Failed to save registration documents:", err);
+    return res
+      .status(500)
+      .json({ error: "Failed to save registration documents" });
   }
 
   const newReg: Registration = {
     id: regId,
-    companyName: registrationBody.companyName || "Unknown Vendor",
-    category: registrationBody.category || "General",
-    contactName: registrationBody.contactName || "John Doe",
-    contactEmail: registrationBody.contactEmail || "contact@vendor.com",
-    contactPhone: registrationBody.contactPhone || "None",
-    address: registrationBody.address || "Not provided",
+    companyName: registrationContact.companyName,
+    category: registrationContact.category,
+    contactName: registrationContact.contactName,
+    contactEmail: registrationContact.contactEmail,
+    contactPhone: registrationContact.contactPhone,
+    address: registrationContact.address || "Not provided",
     registeredDate: formatDate(),
     status: "Pending",
     documents,
   };
   await getDb().collection("registrations").insertOne(newReg);
 
-  // Create notification for admins
   await createNotificationsForRole(
     "Admin",
     "registration_submitted",
-    `New vendor registration: ${registrationBody.companyName || "Unknown Vendor"}`,
-    { companyName: registrationBody.companyName },
+    `New vendor registration: ${newReg.companyName}`,
+    { companyName: newReg.companyName },
   );
 
   res.status(201).json({ registration: newReg });
 });
 
 app.get("/api/registrations/:id/documents/:type", async (req, res) => {
+  const idError = validateId(req.params.id, "Registration ID");
+  if (idError) return badRequest(res, idError);
+
   const docType = req.params.type;
   if (docType !== "license" && docType !== "w9") {
     return res.status(400).json({ error: "Invalid document type." });
@@ -369,23 +606,40 @@ app.get("/api/purchases", async (_req, res) => {
 });
 
 app.post("/api/purchases", async (req, res) => {
+  const body = getBody(req);
+  const vendorId = validateId(body.vendorId, "Vendor ID");
+  const date = validateTodayOrFutureDate(body.date, "Purchase date");
+  const createdBy = body.createdBy
+    ? validateEmail(body.createdBy, "Created by")
+    : null;
+  const purchaseItems = validatePurchaseItems(body.items);
+  if (typeof purchaseItems === "string") return badRequest(res, purchaseItems);
+
+  const purchaseError = firstError(vendorId, date, createdBy);
+  if (purchaseError) return badRequest(res, purchaseError);
+
+  const vendor = await getDb()
+    .collection<Vendor>("vendors")
+    .findOne({ id: String(body.vendorId).trim() });
+  if (!vendor) return res.status(404).json({ error: "Vendor not found" });
+
   const count = await getDb().collection("purchases").countDocuments();
-  const newPurchase = {
+  const newPurchase: PurchaseRequest = {
     id: `PRQ-${String(count + 1).padStart(3, "0")}`,
-    vendorId: req.body.vendorId,
-    vendorName: req.body.vendorName,
-    date: req.body.date || new Date().toISOString().split("T")[0],
-    items: req.body.items || [],
-    totalAmount: parseFloat(req.body.totalAmount || 0),
-    status: req.body.status || "Pending",
-    createdBy: req.body.createdBy,
+    vendorId: String(body.vendorId).trim(),
+    vendorName: vendor.name,
+    date: String(body.date ?? todayIsoDate()).trim(),
+    items: purchaseItems.items,
+    totalAmount: purchaseItems.totalAmount,
+    status: "Pending",
+    createdBy: body.createdBy ? String(body.createdBy).trim() : undefined,
   };
   await getDb().collection("purchases").insertOne(newPurchase);
 
   // Create notification for specific vendor user
   const vendorUser = await getDb()
     .collection("users")
-    .findOne({ vendorId: req.body.vendorId });
+    .findOne({ vendorId: newPurchase.vendorId });
   if (vendorUser) {
     const notification: Notification = {
       id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
@@ -395,7 +649,7 @@ app.post("/api/purchases", async (req, res) => {
       read: false,
       createdAt: new Date().toISOString(),
       metadata: {
-        vendorName: req.body.vendorName,
+        vendorName: newPurchase.vendorName,
         purchaseRequestId: newPurchase.id,
       },
     };
@@ -406,22 +660,38 @@ app.post("/api/purchases", async (req, res) => {
 });
 
 app.put("/api/purchases/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Purchase request ID");
+  if (idError) return badRequest(res, idError);
+
   const existing = await getDb()
     .collection<PurchaseRequest>("purchases")
     .findOne({ id: req.params.id });
+  if (!existing)
+    return res.status(404).json({ error: "Purchase request not found" });
+
+  const body = getBody(req);
+  if (body.status === undefined) {
+    return badRequest(res, "Only purchase request status updates are allowed");
+  }
+  const status = validateStatus(
+    body.status,
+    purchaseStatuses,
+    "Purchase request status",
+  );
+  if (!status) return badRequest(res, "Invalid purchase request status");
+
   const result = await getDb()
     .collection("purchases")
     .findOneAndUpdate(
       { id: req.params.id },
-      { $set: req.body },
+      { $set: { status } },
       { returnDocument: "after" },
     );
   if (!result)
     return res.status(404).json({ error: "Purchase request not found" });
 
   // Create notification for status changes
-  if (existing && req.body.status && existing.status !== req.body.status) {
-    const status = req.body.status;
+  if (existing.status !== status) {
     if (status === "Approved" && existing.createdBy) {
       const notification: Notification = {
         id: `NOTIF-${Date.now().toString().slice(-6)}-${Math.random().toString(36).slice(2, 5)}`,
@@ -461,6 +731,9 @@ app.put("/api/purchases/:id", async (req, res) => {
 });
 
 app.delete("/api/purchases/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Purchase request ID");
+  if (idError) return badRequest(res, idError);
+
   const result = await getDb()
     .collection("purchases")
     .deleteOne({ id: req.params.id });
@@ -470,9 +743,13 @@ app.delete("/api/purchases/:id", async (req, res) => {
 });
 
 app.post("/api/registrations/approve", async (req, res) => {
+  const body = getBody(req);
+  const idError = validateId(body.id, "Registration ID");
+  if (idError) return badRequest(res, idError);
+
   const reg = await getDb()
     .collection<Registration>("registrations")
-    .findOne({ id: req.body.id });
+    .findOne({ id: String(body.id).trim() });
   if (!reg) return res.status(404).json({ error: "Registration not found" });
   if (reg.status !== "Pending")
     return res.status(400).json({ error: "Registration already processed." });
@@ -523,15 +800,36 @@ app.post("/api/registrations/approve", async (req, res) => {
   });
 
   // Create vendor user account (password will be set on first login)
+  const passwordHash = hashPassword(otp);
   const vendorUser = {
     email: reg.contactEmail,
-    password: otp, // Initial password is the OTP
+    ...passwordHash,
     name: reg.contactName,
     role: "Vendor" as const,
     department: reg.companyName,
     vendorId: vendorId,
   };
-  await getDb().collection("users").insertOne(vendorUser);
+  const existingVendorUser = await getDb()
+    .collection("users")
+    .findOne({ email: reg.contactEmail });
+  if (existingVendorUser) {
+    await getDb()
+      .collection("users")
+      .updateOne(
+        { email: reg.contactEmail },
+        {
+          $set: {
+            ...passwordHash,
+            name: reg.contactName,
+            role: "Vendor",
+            department: reg.companyName,
+            vendorId,
+          },
+        },
+      );
+  } else {
+    await getDb().collection("users").insertOne(vendorUser);
+  }
 
   // Send credentials email
   try {
@@ -556,14 +854,18 @@ app.post("/api/registrations/approve", async (req, res) => {
     success: true,
     registration: { ...reg, status: "Approved" },
     vendor,
-    credentials: { email: reg.contactEmail, password: otp },
+    credentials: { email: reg.contactEmail },
   });
 });
 
 app.post("/api/registrations/reject", async (req, res) => {
+  const body = getBody(req);
+  const idError = validateId(body.id, "Registration ID");
+  if (idError) return badRequest(res, idError);
+
   const reg = await getDb()
     .collection<Registration>("registrations")
-    .findOne({ id: req.body.id });
+    .findOne({ id: String(body.id).trim() });
   if (!reg) return res.status(404).json({ error: "Registration not found" });
   if (reg.status !== "Pending")
     return res.status(400).json({ error: "Registration already processed." });
@@ -594,8 +896,12 @@ app.post("/api/registrations/reject", async (req, res) => {
 
 // Notifications
 app.get("/api/notifications", async (req, res) => {
-  const { userId } = req.query;
+  const userId = Array.isArray(req.query.userId)
+    ? req.query.userId[0]
+    : req.query.userId;
   if (!userId) return res.status(400).json({ error: "userId required" });
+  const userIdError = validateEmail(userId, "User ID");
+  if (userIdError) return badRequest(res, userIdError);
 
   const notifications = await getDb()
     .collection<Notification>("notifications")
@@ -606,21 +912,26 @@ app.get("/api/notifications", async (req, res) => {
 });
 
 app.post("/api/notifications", async (req, res) => {
-  const { userId, type, message, metadata } = req.body;
-  if (!userId || !type || !message) {
-    return res
-      .status(400)
-      .json({ error: "userId, type, and message required" });
-  }
+  const body = getBody(req);
+  const userId = validateEmail(body.userId, "User ID");
+  const type = validateStatus(
+    body.type,
+    notificationTypes,
+    "Notification type",
+  );
+  if (!type) return badRequest(res, "Invalid notification type");
+  const message = validateRequiredText(body.message, "Message", { max: 240 });
+  const notificationError = firstError(userId, message);
+  if (notificationError) return badRequest(res, notificationError);
 
   const newNotification: Notification = {
     id: `NOTIF-${Date.now().toString().slice(-6)}`,
-    userId,
+    userId: String(body.userId).trim(),
     type,
-    message,
+    message: String(body.message).trim(),
     read: false,
     createdAt: new Date().toISOString(),
-    metadata,
+    metadata: isRecord(body.metadata) ? body.metadata : undefined,
   };
 
   await getDb().collection("notifications").insertOne(newNotification);
@@ -628,21 +939,36 @@ app.post("/api/notifications", async (req, res) => {
 });
 
 app.post("/api/notifications/read", async (req, res) => {
-  const { userId, notificationIds } = req.body;
-  if (!userId) return res.status(400).json({ error: "userId required" });
-
-  const filter: any = { userId };
-  if (notificationIds && notificationIds.length > 0) {
-    filter.id = { $in: notificationIds };
+  const body = getBody(req);
+  const userId = validateEmail(body.userId, "User ID");
+  if (userId) return badRequest(res, userId);
+  const notificationIds = Array.isArray(body.notificationIds)
+    ? body.notificationIds
+    : [];
+  if (notificationIds.length > 0) {
+    const invalidId = notificationIds.find((id) =>
+      validateId(id, "Notification ID"),
+    );
+    if (invalidId)
+      return badRequest(
+        res,
+        validateId(invalidId, "Notification ID") as string,
+      );
   }
 
-  await getDb()
-    .collection("notifications")
-    .updateMany(filter, { $set: { read: true } });
+  const filter: any = { userId: String(body.userId).trim() };
+  if (notificationIds.length > 0) {
+    filter.id = { $in: notificationIds.map(String) };
+  }
+
+  await getDb().collection("notifications").deleteMany(filter);
   res.json({ success: true });
 });
 
 app.delete("/api/notifications/:id", async (req, res) => {
+  const idError = validateId(req.params.id, "Notification ID");
+  if (idError) return badRequest(res, idError);
+
   const result = await getDb()
     .collection("notifications")
     .deleteOne({ id: req.params.id });
@@ -653,50 +979,62 @@ app.delete("/api/notifications/:id", async (req, res) => {
 
 // Change password
 app.post("/api/users/password", async (req, res) => {
-  const { email, currentPassword, newPassword } = req.body;
-  if (!email || !currentPassword || !newPassword) {
-    return res
-      .status(400)
-      .json({ error: "email, currentPassword, and newPassword required" });
-  }
+  const body = getBody(req);
+  const email = validateEmail(body.email, "Email");
+  const currentPassword = validatePassword(
+    body.currentPassword,
+    "Current password",
+  );
+  const newPassword = validateStrongPassword(
+    String(body.newPassword ?? ""),
+    "New password",
+  );
+  const passwordError = firstError(email, currentPassword, newPassword);
+  if (passwordError) return badRequest(res, passwordError);
 
-  if (newPassword.length < 6) {
-    return res
-      .status(400)
-      .json({ error: "Password must be at least 6 characters" });
-  }
-
-  const user = await getDb().collection("users").findOne({ email });
+  const user = await getDb()
+    .collection("users")
+    .findOne({ email: String(body.email).trim() });
   if (!user) {
     return res.status(404).json({ error: "User not found" });
   }
 
-  if (user.password !== currentPassword) {
+  if (!verifyPassword(user as PasswordRecord, String(body.currentPassword))) {
     return res.status(401).json({ error: "Current password is incorrect" });
   }
 
+  if (verifyPassword(user as PasswordRecord, String(body.newPassword))) {
+    return res.status(400).json({
+      error: "New password must be different from your current password",
+    });
+  }
+
+  const passwordHash = hashPassword(String(body.newPassword));
   await getDb()
     .collection("users")
-    .updateOne({ email }, { $set: { password: newPassword } });
+    .updateOne(
+      { email: String(body.email).trim() },
+      { $set: passwordHash, $unset: { password: "" } },
+    );
 
   res.json({ success: true });
 });
 
 // Forgot password - send OTP
 app.post("/api/auth/forgot-password", async (req, res) => {
-  const { email, role } = req.body;
-  if (!email) {
-    return res.status(400).json({ error: "email required" });
-  }
+  const body = getBody(req);
+  const email = validateEmail(body.email, "Email");
+  if (email) return badRequest(res, email);
 
-  // Only allow Vendor and FinancialManager roles
-  if (role === "Admin") {
-    return res.status(403).json({ error: "Admin password reset not allowed" });
-  }
-
-  const user = await getDb().collection("users").findOne({ email, role });
+  const user = await getDb()
+    .collection("users")
+    .findOne({ email: String(body.email).trim() });
   if (!user) {
     return res.status(404).json({ error: "User not found" });
+  }
+
+  if (user.role === "Admin") {
+    return res.status(403).json({ error: "Admin password reset not allowed" });
   }
 
   const otp = generateOTP();
@@ -706,14 +1044,21 @@ app.post("/api/auth/forgot-password", async (req, res) => {
   await getDb()
     .collection("otps")
     .updateOne(
-      { email },
-      { $set: { email, otp, expiresAt: otpExpiry, used: false } },
+      { email: String(body.email).trim() },
+      {
+        $set: {
+          email: String(body.email).trim(),
+          otp,
+          expiresAt: otpExpiry,
+          used: false,
+        },
+      },
       { upsert: true },
     );
 
   // Send reset email
   try {
-    await sendResetPasswordEmail(email, user.name, otp);
+    await sendResetPasswordEmail(String(body.email).trim(), user.name, otp);
     res.json({ success: true });
   } catch (err) {
     console.error("Failed to send reset email:", err);
@@ -723,24 +1068,31 @@ app.post("/api/auth/forgot-password", async (req, res) => {
 
 // Verify OTP and reset password
 app.post("/api/auth/reset-password", async (req, res) => {
-  const { email, otp, newPassword } = req.body;
-  if (!email || !otp || !newPassword) {
-    return res
-      .status(400)
-      .json({ error: "email, otp, and newPassword required" });
+  const body = getBody(req);
+  const email = validateEmail(body.email, "Email");
+  const otpError = validateOtp(body.otp);
+  const newPassword = validateStrongPassword(
+    String(body.newPassword ?? ""),
+    "New password",
+  );
+  const resetError = firstError(email, otpError, newPassword);
+  if (resetError) return badRequest(res, resetError);
+
+  const trimmedEmail = String(body.email).trim();
+  const user = await getDb()
+    .collection("users")
+    .findOne({ email: trimmedEmail });
+  if (!user || user.role === "Admin") {
+    return res.status(404).json({ error: "User not found" });
   }
 
-  if (newPassword.length < 6) {
-    return res
-      .status(400)
-      .json({ error: "Password must be at least 6 characters" });
-  }
-
-  const otpRecord = await getDb().collection("otps").findOne({
-    email,
-    otp,
-    used: false,
-  });
+  const otpRecord = await getDb()
+    .collection("otps")
+    .findOne({
+      email: trimmedEmail,
+      otp: String(body.otp).trim(),
+      used: false,
+    });
 
   if (!otpRecord) {
     return res.status(400).json({ error: "Invalid OTP" });
@@ -750,14 +1102,27 @@ app.post("/api/auth/reset-password", async (req, res) => {
     return res.status(400).json({ error: "OTP expired" });
   }
 
+  if (verifyPassword(user as PasswordRecord, String(body.newPassword))) {
+    return res.status(400).json({
+      error: "New password must be different from your current password",
+    });
+  }
+
   // Update password and mark OTP as used
+  const passwordHash = hashPassword(String(body.newPassword));
   await getDb()
     .collection("users")
-    .updateOne({ email }, { $set: { password: newPassword } });
+    .updateOne(
+      { email: trimmedEmail },
+      { $set: passwordHash, $unset: { password: "" } },
+    );
 
   await getDb()
     .collection("otps")
-    .updateOne({ email, otp }, { $set: { used: true } });
+    .updateOne(
+      { email: trimmedEmail, otp: String(body.otp).trim() },
+      { $set: { used: true } },
+    );
 
   res.json({ success: true });
 });

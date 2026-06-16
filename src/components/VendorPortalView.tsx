@@ -9,12 +9,14 @@ import {
 import type { VendorPortalTab } from "../config/roles.js";
 import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
+import PhoneInput from "./PhoneInput.jsx";
+import { Download } from "lucide-react";
 import {
-  Plus,
-  Pencil,
-  Trash2,
-  CheckCircle,
-} from "lucide-react";
+  getPasswordStrength,
+  validateStrongPassword,
+} from "../utils/password.js";
+import { sendInvoiceEmail } from "../utils/invoiceEmail.js";
+import { Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
 import { useConfirm } from "../context/ConfirmContext.js";
 import { useToast } from "../context/ToastContext.js";
 
@@ -58,6 +60,18 @@ export default function VendorPortalView({
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [updatingPurchaseId, setUpdatingPurchaseId] = useState<string | null>(
+    null,
+  );
+
+  const passwordStrength = getPasswordStrength(newPassword);
+  const passwordStrengthClass = [
+    "text-ink-subtle",
+    "text-danger-ink",
+    "text-danger-ink",
+    "text-primary",
+    "text-success-ink",
+  ][passwordStrength.score];
 
   // Catalog Form State
   const [showItemModal, setShowItemModal] = useState(false);
@@ -97,16 +111,22 @@ export default function VendorPortalView({
     0,
   );
 
+  const handleDownloadInvoice = async (inv: Invoice) => {
+    try {
+      await sendInvoiceEmail(inv);
+      pushToast("Invoice download request sent");
+    } catch (error) {
+      pushToast(
+        error instanceof Error ? error.message : "Invoice download failed",
+        "error",
+      );
+    }
+  };
+
   // Profile Update Submission
   const handleProfileSubmit = (e: FormEvent) => {
     e.preventDefault();
     onUpdateVendor(profileForm);
-  };
-
-  const handlePhoneChange = (val: string) => {
-    // Phone character restriction
-    const sanitized = val.replace(/[^0-9+\s()-.]/g, "");
-    setProfileForm({ ...profileForm, phone: sanitized });
   };
 
   // Password change handler
@@ -124,8 +144,9 @@ export default function VendorPortalView({
       return;
     }
 
-    if (newPassword.length < 6) {
-      setPasswordError("Password must be at least 6 characters");
+    const strengthError = validateStrongPassword(newPassword, "Password");
+    if (strengthError) {
+      setPasswordError(strengthError);
       return;
     }
 
@@ -230,25 +251,75 @@ export default function VendorPortalView({
 
   // Update purchase request status
   const handleAcceptPurchase = async (reqId: string) => {
-    const confirmed = await confirm({
-      title: "Accept Purchase Request",
-      message: "Accept this purchase order request and start processing?",
-      confirmLabel: "Accept Order",
-    });
-    if (confirmed) {
-      onUpdatePurchase(reqId, { status: "Approved" });
+    if (updatingPurchaseId) return;
+
+    setUpdatingPurchaseId(reqId);
+    try {
+      const confirmed = await confirm({
+        title: "Accept Purchase Request",
+        message: "Accept this purchase order request and start processing?",
+        confirmLabel: "Accept Order",
+      });
+      if (!confirmed) return;
+
+      await onUpdatePurchase(reqId, { status: "Approved" });
+    } finally {
+      setUpdatingPurchaseId(null);
     }
   };
 
   const handleDeliverPurchase = async (reqId: string) => {
-    const confirmed = await confirm({
-      title: "Deliver Purchase Order",
-      message: "Mark this purchase order as delivered to CLance Solutions?",
-      confirmLabel: "Deliver Order",
-    });
-    if (confirmed) {
-      onUpdatePurchase(reqId, { status: "Delivered" });
+    if (updatingPurchaseId) return;
+
+    setUpdatingPurchaseId(reqId);
+    try {
+      const confirmed = await confirm({
+        title: "Deliver Purchase Order",
+        message: "Mark this purchase order as delivered to CLance Solutions?",
+        confirmLabel: "Deliver Order",
+      });
+      if (!confirmed) return;
+
+      await onUpdatePurchase(reqId, { status: "Delivered" });
+    } finally {
+      setUpdatingPurchaseId(null);
     }
+  };
+
+  const renderPurchaseAction = (prq: PurchaseRequest) => {
+    const isUpdatingPurchase = updatingPurchaseId === prq.id;
+
+    if (prq.status === "Pending") {
+      return (
+        <button
+          type="button"
+          disabled={isUpdatingPurchase}
+          onClick={() => handleAcceptPurchase(prq.id)}
+          className="px-3 py-1.5 bg-success-ink text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isUpdatingPurchase ? "Accepting…" : "Accept Request"}
+        </button>
+      );
+    }
+
+    if (prq.status === "Approved") {
+      return (
+        <button
+          type="button"
+          disabled={isUpdatingPurchase}
+          onClick={() => handleDeliverPurchase(prq.id)}
+          className="px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isUpdatingPurchase ? "Delivering…" : "Deliver Order"}
+        </button>
+      );
+    }
+
+    return (
+      <span className="text-xs font-semibold text-ink-subtle flex items-center gap-1">
+        <CheckCircle className="w-3.5 h-3.5 text-success-ink" /> Delivered
+      </span>
+    );
   };
 
   return (
@@ -368,6 +439,9 @@ export default function VendorPortalView({
                     <th scope="col" className="px-6 py-3">
                       Status
                     </th>
+                    <th scope="col" className="px-6 py-3">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border-subtle">
@@ -387,6 +461,16 @@ export default function VendorPortalView({
                       </td>
                       <td className="px-6 py-4">
                         <StatusBadge status={inv.status} />
+                      </td>
+                      <td className="px-6 py-4">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadInvoice(inv)}
+                          aria-label={`Download invoice ${inv.id}`}
+                          className="p-2 text-ink-subtle hover:text-primary rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -461,30 +545,7 @@ export default function VendorPortalView({
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          {prq.status === "Pending" && (
-                            <button
-                              type="button"
-                              onClick={() => handleAcceptPurchase(prq.id)}
-                              className="px-3 py-1.5 bg-success-ink text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity"
-                            >
-                              Accept Request
-                            </button>
-                          )}
-                          {prq.status === "Approved" && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeliverPurchase(prq.id)}
-                              className="px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity"
-                            >
-                              Deliver Order
-                            </button>
-                          )}
-                          {prq.status === "Delivered" && (
-                            <span className="text-xs font-semibold text-ink-subtle flex items-center gap-1">
-                              <CheckCircle className="w-3.5 h-3.5 text-success-ink" />{" "}
-                              Delivered
-                            </span>
-                          )}
+                          {renderPurchaseAction(prq)}
                         </div>
                       </td>
                     </tr>
@@ -651,19 +712,16 @@ export default function VendorPortalView({
                   className="vms-input"
                 />
               </div>
-              <div>
-                <label htmlFor="prof-phone" className="vms-label mb-1">
-                  Business phone number *
-                </label>
-                <input
-                  id="prof-phone"
-                  type="tel"
-                  required
-                  value={profileForm.phone}
-                  onChange={(e) => handlePhoneChange(e.target.value)}
-                  className="vms-input"
-                />
-              </div>
+              <PhoneInput
+                id="prof-phone"
+                label="Business phone number"
+                required
+                value={profileForm.phone}
+                maxLength={30}
+                onChange={(value) =>
+                  setProfileForm({ ...profileForm, phone: value })
+                }
+              />
               <div>
                 <label htmlFor="prof-address" className="vms-label mb-1">
                   Office address *
@@ -715,12 +773,20 @@ export default function VendorPortalView({
                   id="new-password"
                   type="password"
                   required
-                  minLength={6}
+                  minLength={8}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="vms-input"
                 />
               </div>
+              {newPassword && (
+                <p className="text-xs text-ink-muted">
+                  Password strength:{" "}
+                  <span className={`font-semibold ${passwordStrengthClass}`}>
+                    {passwordStrength.label}
+                  </span>
+                </p>
+              )}
               <div>
                 <label htmlFor="confirm-password" className="vms-label mb-1">
                   Confirm New Password *
@@ -729,7 +795,7 @@ export default function VendorPortalView({
                   id="confirm-password"
                   type="password"
                   required
-                  minLength={6}
+                  minLength={8}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="vms-input"

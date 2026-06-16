@@ -1,6 +1,7 @@
 import { ChevronRight } from "lucide-react";
 import { Vendor, Registration } from "../types.js";
 import { useConfirm } from "../context/ConfirmContext.js";
+import EmptyState from "./EmptyState.jsx";
 import RegistrationDocuments from "./RegistrationDocuments.jsx";
 
 interface DashboardViewProps {
@@ -38,14 +39,22 @@ export default function DashboardView({
 
       <div className="vms-summary-bar">
         <span>
-          <span className="font-semibold text-ink">{vendors.length}</span> vendors on record
+          <span className="font-semibold text-ink">{vendors.length}</span>{" "}
+          vendors on record
         </span>
-        <span aria-hidden="true" className="text-border">|</span>
+        <span aria-hidden="true" className="text-border">
+          |
+        </span>
         <span>
-          <span className="font-semibold text-ink">{pending.length}</span> pending approval{pending.length === 1 ? "" : "s"}
+          <span className="font-semibold text-ink">{pending.length}</span>{" "}
+          pending approval{pending.length === 1 ? "" : "s"}
         </span>
         {pending.length > 0 && (
-          <button type="button" onClick={() => onNavigate("onboarding")} className="vms-link inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => onNavigate("onboarding")}
+            className="vms-link inline-flex items-center gap-1"
+          >
             Review onboarding queue
             <ChevronRight className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -56,24 +65,41 @@ export default function DashboardView({
         <div className="vms-panel-header flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <h3 className="font-bold text-ink">Pending vendor registrations</h3>
           {pending.length > 0 && (
-            <button type="button" onClick={() => onNavigate("onboarding")} className="vms-link">
+            <button
+              type="button"
+              onClick={() => onNavigate("onboarding")}
+              className="vms-link"
+            >
               Open full onboarding view
             </button>
           )}
         </div>
 
         {pending.length === 0 ? (
-          <p className="vms-empty">No pending registrations. New vendor requests will appear here.</p>
+          <EmptyState
+            title="No pending registrations"
+            description="New vendor requests will appear here as soon as applicants submit onboarding forms."
+          />
         ) : (
           <div className="vms-table-wrap">
             <table className="vms-table">
               <thead>
                 <tr className="vms-table-head">
-                  <th scope="col" className="px-6 py-3">Company</th>
-                  <th scope="col" className="px-6 py-3">Contact</th>
-                  <th scope="col" className="px-6 py-3">Email</th>
-                  <th scope="col" className="px-6 py-3">Registered</th>
-                  <th scope="col" className="px-6 py-3 text-right">Actions</th>
+                  <th scope="col" className="px-6 py-3">
+                    Company
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Contact
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Email
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Registered
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -87,9 +113,15 @@ export default function DashboardView({
                         compact
                       />
                     </td>
-                    <td className="px-6 py-4 text-sm text-ink-muted">{reg.contactName}</td>
-                    <td className="px-6 py-4 text-sm text-ink-muted">{reg.contactEmail}</td>
-                    <td className="px-6 py-4 text-sm text-ink-muted">{reg.registeredDate}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {reg.contactName}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {reg.contactEmail}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {reg.registeredDate}
+                    </td>
                     <td className="px-6 py-4 text-right space-x-3">
                       <button
                         type="button"
