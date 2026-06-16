@@ -45,11 +45,11 @@ export default function PhoneInput({
           setCountryCode(nextCountry);
           onChange(formatPhoneWithCountryCode(value, nextCountry));
         }}
-        className="w-28 vms-input"
+        className="w-32 vms-input"
       >
         {countryOptions.map((option) => (
-          <option key={option.code} value={option.code}>
-            {option.name} {option.dialCode}
+          <option key={option.code} value={option.code} title={option.name}>
+            {option.dialCode} {option.code}
           </option>
         ))}
       </select>

@@ -9,8 +9,10 @@ import {
   Download,
 } from "lucide-react";
 import {
+  getDueDateRange,
   sanitizeSearch,
   todayIsoDate,
+  validateDueDate,
   validateMoney,
   validateRequiredText,
 } from "../utils/validation.js";
@@ -20,7 +22,6 @@ import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
 import { useConfirm } from "../context/ConfirmContext.js";
 import { useToast } from "../context/ToastContext.js";
-import { sendInvoiceEmail } from "../utils/invoiceEmail.js";
 
 interface PaymentsViewProps {
   invoices: Invoice[];
@@ -48,6 +49,7 @@ export default function PaymentsView({
   const confirm = useConfirm();
   const { pushToast } = useToast();
   const today = todayIsoDate();
+  const dueDateRange = getDueDateRange();
   const [activeTab, setActiveTab] = useState<"invoices" | "purchases">(
     "invoices",
   );
@@ -60,6 +62,8 @@ export default function PaymentsView({
   );
   const [invoiceAmount, setInvoiceAmount] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(today);
+  const [invoiceDueDate, setInvoiceDueDate] = useState("");
+  const [invoiceDueDateError, setInvoiceDueDateError] = useState("");
   const [invoiceStatus, setInvoiceStatus] =
     useState<Invoice["status"]>("Pending");
   const [searchInvoices, setSearchInvoices] = useState("");
@@ -104,6 +108,8 @@ export default function PaymentsView({
     setEditingId(null);
     setInvoiceAmount("");
     setInvoiceDate(new Date().toISOString().split("T")[0]);
+    setInvoiceDueDate("");
+    setInvoiceDueDateError("");
     setInvoiceStatus("Pending");
     setSelectedVendorId(vendors[0]?.id || "");
     setShowForm(true);
@@ -114,6 +120,8 @@ export default function PaymentsView({
     setSelectedVendorId(inv.vendorId);
     setInvoiceAmount(String(inv.amount));
     setInvoiceDate(inv.date);
+    setInvoiceDueDate(inv.dueDate || "");
+    setInvoiceDueDateError("");
     setInvoiceStatus(inv.status);
     setShowForm(true);
   };
@@ -131,8 +139,24 @@ export default function PaymentsView({
 
   const handleDownloadInvoice = async (inv: Invoice) => {
     try {
-      await sendInvoiceEmail(inv);
-      pushToast("Invoice download request sent");
+      const response = await fetch(
+        `/api/invoices/${encodeURIComponent(inv.id)}/pdf`,
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Invoice download failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `invoice-${inv.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      pushToast("Invoice PDF downloaded");
     } catch (error) {
       pushToast(
         error instanceof Error ? error.message : "Invoice download failed",
@@ -146,11 +170,18 @@ export default function PaymentsView({
     const vendor = vendors.find((v) => v.id === selectedVendorId);
     if (!vendor || !invoiceAmount) return;
 
+    const dueDateError = validateDueDate(invoiceDueDate, "Due date");
+    if (dueDateError) {
+      setInvoiceDueDateError(dueDateError);
+      return;
+    }
+
     const payload = {
       vendorId: vendor.id,
       vendorName: vendor.name,
       amount: parseFloat(invoiceAmount),
       date: invoiceDate,
+      dueDate: invoiceDueDate,
       status: invoiceStatus,
     };
 
@@ -387,6 +418,9 @@ export default function PaymentsView({
                         Date
                       </th>
                       <th scope="col" className="px-6 py-3">
+                        Due Date
+                      </th>
+                      <th scope="col" className="px-6 py-3">
                         Amount
                       </th>
                       <th scope="col" className="px-6 py-3">
@@ -410,6 +444,9 @@ export default function PaymentsView({
                         </td>
                         <td className="px-6 py-4 text-sm text-ink-muted">
                           {inv.date}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-ink-muted">
+                          {inv.dueDate || "—"}
                         </td>
                         <td className="px-6 py-4 text-sm font-semibold text-ink">
                           $
@@ -654,6 +691,32 @@ export default function PaymentsView({
                 min={today}
                 required
               />
+            </div>
+            <div>
+              <label htmlFor="invoice-due-date" className="vms-label mb-1">
+                Due Date
+              </label>
+              <input
+                id="invoice-due-date"
+                type="date"
+                value={invoiceDueDate}
+                onChange={(e) => {
+                  setInvoiceDueDate(e.target.value);
+                  setInvoiceDueDateError("");
+                }}
+                min={dueDateRange.min}
+                max={dueDateRange.max}
+                className="vms-input"
+                required
+              />
+              <p className="mt-1 text-xs text-ink-muted">
+                Choose a date from {dueDateRange.min} to {dueDateRange.max}.
+              </p>
+              {invoiceDueDateError && (
+                <p role="alert" className="vms-alert-error text-xs mt-1">
+                  {invoiceDueDateError}
+                </p>
+              )}
             </div>
             <div>
               <label htmlFor="invoice-status" className="vms-label mb-1">

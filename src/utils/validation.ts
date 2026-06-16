@@ -8,12 +8,39 @@ export const MAX_DOCUMENT_SIZE_BYTES = 5 * 1024 * 1024;
 export const MAX_DOCUMENT_BASE64_LENGTH = Math.floor(
   (MAX_DOCUMENT_SIZE_BYTES * 4) / 3,
 );
+export const MAX_DUE_DATE_MONTHS = 3;
 export const documentMimeTypes = ["application/pdf"] as const;
 
 export function todayIsoDate(): string {
   const now = new Date();
   const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000);
   return local.toISOString().slice(0, 10);
+}
+
+function formatLocalIsoDate(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+export function addMonthsIsoDate(dateIso: string, months: number): string {
+  const [year, month, day] = dateIso.split("-").map(Number);
+  const targetMonth = new Date(year, month - 1 + months, 1);
+  const lastDay = new Date(
+    targetMonth.getFullYear(),
+    targetMonth.getMonth() + 1,
+    0,
+  ).getDate();
+  const target = new Date(
+    targetMonth.getFullYear(),
+    targetMonth.getMonth(),
+    Math.min(day, lastDay),
+  );
+  return formatLocalIsoDate(target);
+}
+
+export function getDueDateRange(): { min: string; max: string } {
+  const min = todayIsoDate();
+  return { min, max: addMonthsIsoDate(min, MAX_DUE_DATE_MONTHS) };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
@@ -28,6 +55,18 @@ export function trimTo(value: unknown, maxLength: number): string {
 
 export function sanitizeSearch(value: string): string {
   return trimTo(value, MAX_SEARCH_LENGTH);
+}
+
+export function validatePanNumber(
+  value: unknown,
+  label = "PAN number",
+): string | null {
+  const panNumber = String(value ?? "").trim();
+  if (!panNumber) return `${label} is required`;
+  if (!/^\d{9}$/.test(panNumber)) {
+    return `${label} must be exactly 9 digits`;
+  }
+  return null;
 }
 
 export function validateRequiredText(
@@ -148,6 +187,21 @@ export function validateDate(
     const today = todayIsoDate();
     if (dateValue < today) return `${label} cannot be in the past`;
   }
+  return null;
+}
+
+export function validateDueDate(
+  value: unknown,
+  label = "Due date",
+): string | null {
+  const dateValue = String(value ?? "").trim();
+  const dateError = validateDate(dateValue, { label });
+  if (dateError) return dateError;
+
+  const { min, max } = getDueDateRange();
+  if (dateValue < min) return `${label} cannot be in the past`;
+  if (dateValue > max)
+    return `${label} must be within ${MAX_DUE_DATE_MONTHS} months`;
   return null;
 }
 

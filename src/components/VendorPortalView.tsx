@@ -10,13 +10,12 @@ import type { VendorPortalTab } from "../config/roles.js";
 import StatusBadge from "./StatusBadge.jsx";
 import Modal from "./Modal.jsx";
 import PhoneInput from "./PhoneInput.jsx";
-import { Download } from "lucide-react";
+import { Download, Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
 import {
   getPasswordStrength,
   validateStrongPassword,
 } from "../utils/password.js";
-import { sendInvoiceEmail } from "../utils/invoiceEmail.js";
-import { Plus, Pencil, Trash2, CheckCircle } from "lucide-react";
+import { getDueDateRange, validateDueDate } from "../utils/validation.js";
 import { useConfirm } from "../context/ConfirmContext.js";
 import { useToast } from "../context/ToastContext.js";
 
@@ -63,7 +62,14 @@ export default function VendorPortalView({
   const [updatingPurchaseId, setUpdatingPurchaseId] = useState<string | null>(
     null,
   );
+  const [showDeliverModal, setShowDeliverModal] = useState(false);
+  const [deliverPurchaseId, setDeliverPurchaseId] = useState<string | null>(
+    null,
+  );
+  const [deliverDueDate, setDeliverDueDate] = useState("");
+  const [deliverError, setDeliverError] = useState("");
 
+  const dueDateRange = getDueDateRange();
   const passwordStrength = getPasswordStrength(newPassword);
   const passwordStrengthClass = [
     "text-ink-subtle",
@@ -113,8 +119,24 @@ export default function VendorPortalView({
 
   const handleDownloadInvoice = async (inv: Invoice) => {
     try {
-      await sendInvoiceEmail(inv);
-      pushToast("Invoice download request sent");
+      const response = await fetch(
+        `/api/invoices/${encodeURIComponent(inv.id)}/pdf`,
+      );
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Invoice download failed");
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `invoice-${inv.id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      pushToast("Invoice PDF downloaded");
     } catch (error) {
       pushToast(
         error instanceof Error ? error.message : "Invoice download failed",
@@ -268,19 +290,32 @@ export default function VendorPortalView({
     }
   };
 
-  const handleDeliverPurchase = async (reqId: string) => {
-    if (updatingPurchaseId) return;
+  const openDeliverPurchase = (reqId: string) => {
+    setDeliverPurchaseId(reqId);
+    setDeliverDueDate("");
+    setDeliverError("");
+    setShowDeliverModal(true);
+  };
 
-    setUpdatingPurchaseId(reqId);
+  const handleDeliverPurchase = async () => {
+    if (!deliverPurchaseId || updatingPurchaseId) return;
+
+    const dueDateError = validateDueDate(deliverDueDate, "Due date");
+    if (dueDateError) {
+      setDeliverError(dueDateError);
+      return;
+    }
+
+    setUpdatingPurchaseId(deliverPurchaseId);
     try {
-      const confirmed = await confirm({
-        title: "Deliver Purchase Order",
-        message: "Mark this purchase order as delivered to CLance Solutions?",
-        confirmLabel: "Deliver Order",
+      await onUpdatePurchase(deliverPurchaseId, {
+        status: "Delivered",
+        dueDate: deliverDueDate,
       });
-      if (!confirmed) return;
-
-      await onUpdatePurchase(reqId, { status: "Delivered" });
+      setShowDeliverModal(false);
+      setDeliverPurchaseId(null);
+      setDeliverDueDate("");
+      setDeliverError("");
     } finally {
       setUpdatingPurchaseId(null);
     }
@@ -307,7 +342,7 @@ export default function VendorPortalView({
         <button
           type="button"
           disabled={isUpdatingPurchase}
-          onClick={() => handleDeliverPurchase(prq.id)}
+          onClick={() => openDeliverPurchase(prq.id)}
           className="px-3 py-1.5 bg-primary text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity disabled:opacity-60 disabled:cursor-not-allowed"
         >
           {isUpdatingPurchase ? "Delivering…" : "Deliver Order"}
@@ -434,6 +469,9 @@ export default function VendorPortalView({
                       Date
                     </th>
                     <th scope="col" className="px-6 py-3">
+                      Due Date
+                    </th>
+                    <th scope="col" className="px-6 py-3">
                       Amount
                     </th>
                     <th scope="col" className="px-6 py-3">
@@ -452,6 +490,9 @@ export default function VendorPortalView({
                       </td>
                       <td className="px-6 py-4 text-sm text-ink-muted">
                         {inv.date}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-ink-muted">
+                        {inv.dueDate || "—"}
                       </td>
                       <td className="px-6 py-4 text-sm font-semibold text-ink">
                         $
@@ -558,6 +599,71 @@ export default function VendorPortalView({
           )}
         </section>
       )}
+
+      {/* Deliver Purchase Order Modal */}
+      <Modal
+        open={showDeliverModal}
+        onClose={() => setShowDeliverModal(false)}
+        titleId="deliver-purchase-title"
+        className="vms-panel p-6 max-w-md w-full shadow-xl"
+      >
+        <h2 id="deliver-purchase-title" className="font-bold text-ink mb-4">
+          Deliver Purchase Order
+        </h2>
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleDeliverPurchase();
+          }}
+          className="space-y-4"
+        >
+          <p className="text-sm text-ink-muted">
+            Select the payment due date for this delivered order.
+          </p>
+          <div>
+            <label htmlFor="deliver-due-date" className="vms-label mb-1">
+              Due Date *
+            </label>
+            <input
+              id="deliver-due-date"
+              type="date"
+              required
+              value={deliverDueDate}
+              onChange={(e) => {
+                setDeliverDueDate(e.target.value);
+                setDeliverError("");
+              }}
+              min={dueDateRange.min}
+              max={dueDateRange.max}
+              className="vms-input"
+            />
+            <p className="mt-1 text-xs text-ink-muted">
+              Choose a date from {dueDateRange.min} to {dueDateRange.max}.
+            </p>
+          </div>
+          {deliverError && (
+            <p role="alert" className="vms-alert-error">
+              {deliverError}
+            </p>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setShowDeliverModal(false)}
+              className="vms-btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={updatingPurchaseId !== null}
+              className="vms-btn-primary"
+            >
+              {updatingPurchaseId ? "Delivering…" : "Deliver Order"}
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Catalog tab */}
       {activeTab === "catalog" && (

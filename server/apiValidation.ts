@@ -10,6 +10,7 @@ import {
   validateEmail,
   validateMoney,
   validateOptionalText,
+  validatePanNumber,
   validatePassword,
   validatePhone,
   validateQuantity,
@@ -34,6 +35,7 @@ export const notificationTypes = [
   "purchase_request_delivered",
   "bill_created",
   "payment_completed",
+  "payment_due_tomorrow",
 ] as const;
 
 export function badRequest(res: express.Response, error: string, status = 400) {
@@ -160,6 +162,7 @@ export function validateRegistrationContact(body: Record<string, unknown>) {
     "Company legal name",
     { max: 120 },
   );
+  const panNumberError = validatePanNumber(body.panNumber, "PAN number");
   const categoryError = validateRequiredText(body.category, "Vendor category", {
     max: 80,
   });
@@ -181,6 +184,7 @@ export function validateRegistrationContact(body: Record<string, unknown>) {
   return {
     error: firstError(
       companyNameError,
+      panNumberError,
       categoryError,
       contactNameError,
       contactEmailError,
@@ -188,6 +192,7 @@ export function validateRegistrationContact(body: Record<string, unknown>) {
       addressError,
     ),
     companyName: String(body.companyName ?? "").trim(),
+    panNumber: String(body.panNumber ?? "").trim(),
     category: String(body.category ?? "").trim(),
     contactName: String(body.contactName ?? "").trim(),
     contactEmail: String(body.contactEmail ?? "").trim(),

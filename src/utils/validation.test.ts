@@ -1,13 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  addMonthsIsoDate,
   sanitizeSearch,
   todayIsoDate,
   validateBase64Document,
   validateDate,
+  validateDueDate,
   validateEmail,
   validateId,
   validateMoney,
   validateMimeType,
+  validatePanNumber,
   validatePassword,
   validatePhone,
   validateQuantity,
@@ -58,6 +61,16 @@ describe("validation helpers", () => {
     );
   });
 
+  it("validates PAN numbers", () => {
+    expect(validatePanNumber("123456789")).toBeNull();
+    expect(validatePanNumber("12345678")).toBe(
+      "PAN number must be exactly 9 digits",
+    );
+    expect(validatePanNumber("12345678A")).toBe(
+      "PAN number must be exactly 9 digits",
+    );
+  });
+
   it("validates money", () => {
     expect(validateMoney("12.34")).toBeNull();
     expect(validateMoney("0")).toBe("Amount must be at least 0.01");
@@ -77,6 +90,27 @@ describe("validation helpers", () => {
       "Date cannot be in the past",
     );
     expect(validateDate("not-a-date")).toBe("Enter date as YYYY-MM-DD");
+  });
+
+  it("adds months without overflowing into the next month", () => {
+    expect(addMonthsIsoDate("2026-01-31", 1)).toBe("2026-02-28");
+    expect(addMonthsIsoDate("2026-05-31", 3)).toBe("2026-08-31");
+  });
+
+  it("validates due dates between today and three months from today", () => {
+    const today = todayIsoDate();
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterday = yesterdayDate.toISOString().slice(0, 10);
+    const maxDueDate = addMonthsIsoDate(today, 3);
+    const tooFarDueDate = addMonthsIsoDate(today, 4);
+
+    expect(validateDueDate(today)).toBeNull();
+    expect(validateDueDate(maxDueDate)).toBeNull();
+    expect(validateDueDate(yesterday)).toBe("Due date cannot be in the past");
+    expect(validateDueDate(tooFarDueDate)).toBe(
+      "Due date must be within 3 months",
+    );
   });
 
   it("validates quantities", () => {

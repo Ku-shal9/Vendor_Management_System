@@ -16,6 +16,7 @@ import {
   validateFilename,
   validateMimeType,
   validateOptionalText,
+  validatePanNumber,
   validatePhone,
   validateRequiredText,
 } from "../utils/validation.js";
@@ -36,6 +37,7 @@ export default function OnboardingView({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [panNumber, setPanNumber] = useState("");
   const [licenseFile, setLicenseFile] = useState<File | null>(null);
   const [w9File, setW9File] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -70,14 +72,19 @@ export default function OnboardingView({
       });
       const emailError = validateEmail(email, "Corporate email");
       const phoneError = validatePhone(phone, false);
+      const panError = validatePanNumber(panNumber, "PAN number");
       const addressError = validateOptionalText(
         address,
         "Business address",
         300,
       );
-      const error = [nameError, emailError, phoneError, addressError].find(
-        Boolean,
-      );
+      const error = [
+        nameError,
+        emailError,
+        phoneError,
+        panError,
+        addressError,
+      ].find(Boolean);
       if (error) {
         setFormError(error as string);
         return;
@@ -116,10 +123,15 @@ export default function OnboardingView({
     });
     const emailError = validateEmail(email, "Corporate email");
     const phoneError = validatePhone(phone, false);
+    const panError = validatePanNumber(panNumber, "PAN number");
     const addressError = validateOptionalText(address, "Business address", 300);
-    const formError = [nameError, emailError, phoneError, addressError].find(
-      Boolean,
-    );
+    const formError = [
+      nameError,
+      emailError,
+      phoneError,
+      panError,
+      addressError,
+    ].find(Boolean);
     if (formError) {
       setFormError(formError as string);
       return;
@@ -181,6 +193,7 @@ export default function OnboardingView({
         body: JSON.stringify({
           companyName,
           category,
+          panNumber,
           contactName: fullName,
           contactEmail: email,
           contactPhone: phone,
@@ -385,6 +398,29 @@ export default function OnboardingView({
                   />
                 </div>
                 <div className="space-y-1">
+                  <label htmlFor="vendor-pan" className="vms-label">
+                    PAN number *
+                  </label>
+                  <input
+                    id="vendor-pan"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={9}
+                    value={panNumber}
+                    onChange={(e) =>
+                      setPanNumber(
+                        e.target.value.replace(/\D/g, "").slice(0, 9),
+                      )
+                    }
+                    placeholder="123456789"
+                    className="vms-input"
+                    required
+                  />
+                  <p className="text-xs text-ink-muted">
+                    Enter a unique 9-digit PAN number.
+                  </p>
+                </div>
+                <div className="space-y-1">
                   <label htmlFor="acct-manager-addr" className="vms-label">
                     Business address
                   </label>
@@ -521,7 +557,7 @@ export default function OnboardingView({
                       />
                       <div>
                         <p className="text-sm font-semibold text-ink">
-                          Tax documents / W-9 *
+                          W-9 / Tax document *
                         </p>
                         <p className="text-xs text-ink-muted">
                           {w9File

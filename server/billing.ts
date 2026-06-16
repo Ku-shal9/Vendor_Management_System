@@ -11,20 +11,29 @@ export function buildBillFromPurchase(
     vendorName: purchase.vendorName,
     amount: purchase.totalAmount,
     date: purchase.date,
+    dueDate: purchase.dueDate,
+    items: purchase.items,
     status: "Due",
   };
 }
 
-export function buildInvoiceFromBill(bill: Bill, invoiceId: string): Invoice {
+export function buildInvoiceFromBill(
+  bill: Bill,
+  invoiceId: string,
+  items = bill.items ?? [],
+): Invoice {
   return {
     id: invoiceId,
     vendorId: bill.vendorId,
     vendorName: bill.vendorName,
     amount: bill.amount,
     date: new Date().toISOString().split("T")[0],
+    dueDate: bill.dueDate,
+    paidAt: bill.paidAt ?? new Date().toISOString(),
     status: "Paid",
     purchaseRequestId: bill.purchaseRequestId,
     billId: bill.id,
+    items,
   };
 }
 

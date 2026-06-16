@@ -1,6 +1,7 @@
 import "./server/env.js";
 
 import express from "express";
+import fs from "node:fs";
 import path from "path";
 import { createServer as createViteServer } from "vite";
 import {
@@ -28,6 +29,7 @@ import {
   buildBillPaidUpdate,
   buildInvoiceFromBill,
 } from "./server/billing.js";
+import { createInvoicePdf, writeInvoicePdf } from "./server/invoicePdf.js";
 import { simulateStripePayment } from "./server/stripe.js";
 import {
   generateOTP,
@@ -58,12 +60,14 @@ import {
   todayIsoDate,
   validateBase64Document,
   validateDate,
+  validateDueDate,
   validateEmail,
   validateFilename,
   validateId,
   validateMimeType,
   validateMoney,
   validateOptionalText,
+  validatePanNumber,
   validatePassword,
   validatePhone,
   validateQuantity,
@@ -267,18 +271,61 @@ app.get("/api/payments", async (_req, res) => {
   res.json({ invoices });
 });
 
+app.get("/api/invoices/:id/pdf", async (req, res) => {
+  const idError = validateId(req.params.id, "Invoice ID");
+  if (idError) return badRequest(res, idError);
+
+  const invoice = await getDb()
+    .collection<Invoice>("invoices")
+    .findOne({ id: req.params.id });
+  if (!invoice) return res.status(404).json({ error: "Invoice not found" });
+
+  const items = invoice.items?.length
+    ? invoice.items
+    : invoice.purchaseRequestId
+      ? await getDb()
+          .collection<PurchaseRequest>("purchases")
+          .findOne({ id: invoice.purchaseRequestId })
+          .then((purchase) => purchase?.items ?? [])
+      : [];
+
+  const pdfBuffer =
+    invoice.pdfPath && fs.existsSync(invoice.pdfPath)
+      ? fs.readFileSync(invoice.pdfPath)
+      : undefined;
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="invoice-${invoice.id}.pdf"`,
+  );
+  const buffer = pdfBuffer ?? createInvoicePdf(invoice, items);
+  res.setHeader("Content-Length", String(buffer.length));
+  res.send(buffer);
+});
+
 app.post("/api/invoices", async (req, res) => {
   const body = getBody(req);
   const vendorId = validateId(body.vendorId, "Vendor ID");
   const amountError = validateMoney(body.amount);
   const date = validateTodayOrFutureDate(body.date, "Invoice date");
+  const dueDate =
+    body.dueDate === undefined
+      ? null
+      : validateDueDate(body.dueDate, "Due date");
   const status = validateStatus(
     body.status ?? "Pending",
     invoiceStatuses,
     "Invoice status",
   );
   const invoiceStatusError = status ? null : `Invalid invoice status`;
-  const error = firstError(vendorId, amountError, date, invoiceStatusError);
+  const error = firstError(
+    vendorId,
+    amountError,
+    date,
+    dueDate,
+    invoiceStatusError,
+  );
   if (error) return badRequest(res, error);
 
   const vendor = await getDb()
@@ -297,6 +344,8 @@ app.post("/api/invoices", async (req, res) => {
     vendorName: vendor.name,
     amount: parseMoney(body.amount) as number,
     date: String(body.date ?? todayIsoDate()).trim(),
+    dueDate:
+      body.dueDate === undefined ? undefined : String(body.dueDate).trim(),
     status: status as Invoice["status"],
   };
   await getDb().collection("invoices").insertOne(newInvoice);
@@ -350,6 +399,11 @@ app.put("/api/invoices/:id", async (req, res) => {
     if (date) return badRequest(res, date);
     updates.date = String(body.date).trim();
   }
+  if (body.dueDate !== undefined) {
+    const dueDate = validateDueDate(body.dueDate, "Due date");
+    if (dueDate) return badRequest(res, dueDate);
+    updates.dueDate = String(body.dueDate).trim();
+  }
   if (body.status !== undefined) {
     const status = validateStatus(
       body.status,
@@ -385,6 +439,7 @@ app.delete("/api/invoices/:id", async (req, res) => {
 
 // Bills
 app.get("/api/bills", async (_req, res) => {
+  await ensureBillsForDeliveredPurchases();
   const bills = await getDb()
     .collection<Bill>("bills")
     .find()
@@ -417,7 +472,8 @@ app.post("/api/bills/:id/pay", async (req, res) => {
   }
 
   const invoiceId = `INV-${Date.now().toString().slice(-6)}`;
-  const invoice = buildInvoiceFromBill(bill, invoiceId);
+  const invoiceItems = bill.items ?? [];
+  const invoice = buildInvoiceFromBill(bill, invoiceId, invoiceItems);
   const billUpdate = buildBillPaidUpdate(
     bill,
     invoiceId,
@@ -425,6 +481,10 @@ app.post("/api/bills/:id/pay", async (req, res) => {
   );
 
   await getDb().collection("invoices").insertOne(invoice);
+  const pdfPath = writeInvoicePdf(invoice, invoiceItems);
+  await getDb()
+    .collection("invoices")
+    .updateOne({ id: invoice.id }, { $set: { pdfPath } });
   await getDb()
     .collection("bills")
     .updateOne({ id: bill.id }, { $set: billUpdate });
@@ -469,6 +529,16 @@ app.post("/api/registrations", async (req, res) => {
   const registrationContact = validateRegistrationContact(body);
   if (registrationContact.error)
     return badRequest(res, registrationContact.error);
+
+  const duplicateVendor = await getDb()
+    .collection<Vendor>("vendors")
+    .findOne({ panNumber: registrationContact.panNumber });
+  const duplicateRegistration = await getDb()
+    .collection<Registration>("registrations")
+    .findOne({ panNumber: registrationContact.panNumber });
+  if (duplicateVendor || duplicateRegistration) {
+    return badRequest(res, "PAN number must be unique");
+  }
 
   const count = await getDb().collection("registrations").countDocuments();
   const regId = `REG-${String(count + 1).padStart(3, "0")}`;
@@ -532,6 +602,7 @@ app.post("/api/registrations", async (req, res) => {
     id: regId,
     companyName: registrationContact.companyName,
     category: registrationContact.category,
+    panNumber: registrationContact.panNumber,
     contactName: registrationContact.contactName,
     contactEmail: registrationContact.contactEmail,
     contactPhone: registrationContact.contactPhone,
@@ -680,11 +751,18 @@ app.put("/api/purchases/:id", async (req, res) => {
   );
   if (!status) return badRequest(res, "Invalid purchase request status");
 
+  const updates: Partial<PurchaseRequest> = { status };
+  if (status === "Delivered") {
+    const dueDate = validateDueDate(body.dueDate, "Due date");
+    if (dueDate) return badRequest(res, dueDate);
+    updates.dueDate = String(body.dueDate).trim();
+  }
+
   const result = await getDb()
     .collection("purchases")
     .findOneAndUpdate(
       { id: req.params.id },
-      { $set: { status } },
+      { $set: updates },
       { returnDocument: "after" },
     );
   if (!result)
@@ -723,7 +801,11 @@ app.put("/api/purchases/:id", async (req, res) => {
         await getDb().collection("notifications").insertOne(notification);
       }
 
-      await createBillForDeliveredPurchase(existing);
+      const purchaseForBill: PurchaseRequest = {
+        ...existing,
+        dueDate: String(body.dueDate).trim(),
+      };
+      await createBillForDeliveredPurchase(purchaseForBill);
     }
   }
 
@@ -773,6 +855,7 @@ app.post("/api/registrations/approve", async (req, res) => {
       email: reg.contactEmail,
       phone: reg.contactPhone,
       address: reg.address,
+      panNumber: reg.panNumber,
     };
     await getDb().collection("vendors").insertOne(vendor);
   } else {
@@ -784,6 +867,7 @@ app.post("/api/registrations/approve", async (req, res) => {
       email: existing.email,
       phone: existing.phone,
       address: existing.address,
+      panNumber: existing.panNumber ?? reg.panNumber,
     };
   }
 
@@ -896,6 +980,8 @@ app.post("/api/registrations/reject", async (req, res) => {
 
 // Notifications
 app.get("/api/notifications", async (req, res) => {
+  await ensurePaymentDueTomorrowNotifications();
+
   const userId = Array.isArray(req.query.userId)
     ? req.query.userId[0]
     : req.query.userId;
@@ -1126,6 +1212,55 @@ app.post("/api/auth/reset-password", async (req, res) => {
 
   res.json({ success: true });
 });
+
+function addDaysIsoDate(dateIso: string, days: number): string {
+  const date = new Date(`${dateIso}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+async function ensureBillsForDeliveredPurchases() {
+  const deliveredPurchases = await getDb()
+    .collection<PurchaseRequest>("purchases")
+    .find({ status: "Delivered" })
+    .toArray();
+
+  for (const purchase of deliveredPurchases) {
+    await createBillForDeliveredPurchase(purchase);
+  }
+}
+
+async function ensurePaymentDueTomorrowNotifications() {
+  const tomorrow = addDaysIsoDate(todayIsoDate(), 1);
+  const dueBills = await getDb()
+    .collection<Bill>("bills")
+    .find({ status: "Due", dueDate: tomorrow })
+    .toArray();
+
+  for (const bill of dueBills) {
+    const existingNotification = await getDb()
+      .collection<Notification>("notifications")
+      .findOne({
+        type: "payment_due_tomorrow",
+        "metadata.billId": bill.id,
+      });
+    if (existingNotification) continue;
+
+    await createNotificationsForRole(
+      "FinancialManager",
+      "payment_due_tomorrow",
+      `Payment for ${bill.vendorName} is due tomorrow (${tomorrow}). Bill #${bill.id}: $${bill.amount.toFixed(2)}`,
+      {
+        vendorName: bill.vendorName,
+        billId: bill.id,
+        invoiceAmount: bill.amount,
+        purchaseRequestId: bill.purchaseRequestId,
+        dueDate: tomorrow,
+      },
+    );
+  }
+}
 
 // Helper to create notifications for user roles
 async function createBillForDeliveredPurchase(purchase: PurchaseRequest) {

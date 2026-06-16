@@ -84,9 +84,29 @@ export default function App() {
     }
   };
 
+  const refreshBills = async () => {
+    try {
+      const response = await fetch("/api/bills");
+      if (response.ok) {
+        const data = await response.json();
+        setBills(data.bills || []);
+      }
+    } catch (err) {
+      console.error("Failed to refresh bills:", err);
+    }
+  };
+
   useEffect(() => {
     fetchAllData();
   }, []);
+
+  useEffect(() => {
+    if (!user || user.role !== "FinancialManager") return;
+
+    refreshBills();
+    const interval = setInterval(refreshBills, 5_000);
+    return () => clearInterval(interval);
+  }, [user?.email, user?.role]);
 
   const handleLoginSuccess = (loggedInUser: UserInfo) => {
     setUser(loggedInUser);

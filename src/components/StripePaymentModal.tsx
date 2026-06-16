@@ -81,7 +81,7 @@ export default function StripePaymentModal({
       <form onSubmit={handleSubmit} className="p-6 space-y-4">
         <p className="text-sm text-ink-muted">
           Pay <span className="font-semibold text-ink">{bill.vendorName}</span>{" "}
-          — ${bill.amount.toFixed(2)} (test mode)
+          — ${bill.amount.toFixed(2)}
         </p>
 
         <div>
@@ -150,11 +150,6 @@ export default function StripePaymentModal({
             />
           </div>
         </div>
-
-        <p className="text-xs text-ink-subtle flex items-center gap-1">
-          <Lock className="w-3 h-3" />
-          Simulated payment — use Stripe test card 4242…
-        </p>
 
         <div className="flex justify-end gap-2 pt-2">
           <button

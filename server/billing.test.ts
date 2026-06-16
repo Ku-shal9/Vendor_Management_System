@@ -15,6 +15,7 @@ describe("buildBillFromPurchase", () => {
         date: "2026-06-01",
         items: [{ name: "Widget", price: 50, quantity: 2 }],
         totalAmount: 100,
+        dueDate: "2026-07-01",
         status: "Delivered",
       },
       "BILL-001",
@@ -22,6 +23,8 @@ describe("buildBillFromPurchase", () => {
 
     expect(bill.status).toBe("Due");
     expect(bill.amount).toBe(100);
+    expect(bill.dueDate).toBe("2026-07-01");
+    expect(bill.items).toEqual([{ name: "Widget", price: 50, quantity: 2 }]);
     expect(bill.purchaseRequestId).toBe("PRQ-001");
   });
 });
@@ -36,12 +39,16 @@ describe("buildInvoiceFromBill", () => {
         vendorName: "TechFlow",
         amount: 100,
         date: "2026-06-01",
+        dueDate: "2026-07-01",
+        items: [{ name: "Widget", price: 50, quantity: 2 }],
         status: "Due",
       },
       "INV-001",
     );
 
     expect(invoice.status).toBe("Paid");
+    expect(invoice.dueDate).toBe("2026-07-01");
+    expect(invoice.items).toEqual([{ name: "Widget", price: 50, quantity: 2 }]);
     expect(invoice.billId).toBe("BILL-001");
     expect(invoice.purchaseRequestId).toBe("PRQ-001");
   });

@@ -23,4 +23,17 @@ describe("validateCardForm", () => {
       }),
     ).toBe("Enter CVC");
   });
+
+  it("rejects expired card dates", () => {
+    const previousYear = String(new Date().getFullYear() - 1).slice(-2);
+
+    expect(
+      validateCardForm({
+        cardNumber: "4242 4242 4242 4242",
+        expiry: `01/${previousYear}`,
+        cvc: "123",
+        name: "Finance User",
+      }),
+    ).toBe("Expiry date cannot be in the past");
+  });
 });

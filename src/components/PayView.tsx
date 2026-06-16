@@ -16,7 +16,7 @@ export default function PayView({ bills, onPayBill }: PayViewProps) {
     <div className="vms-page">
       <h1 className="vms-title mb-2">Pay Bills</h1>
       <p className="text-sm text-ink-muted mb-6">
-        Enter card details in Stripe checkout (test mode).
+        Enter card details in Stripe checkout.
       </p>
 
       <div className="vms-panel overflow-hidden">
@@ -27,10 +27,18 @@ export default function PayView({ bills, onPayBill }: PayViewProps) {
             <table className="vms-table min-w-[720px]">
               <thead>
                 <tr className="vms-table-head">
-                  <th scope="col" className="px-6 py-3">Vendor</th>
-                  <th scope="col" className="px-6 py-3">Bill</th>
-                  <th scope="col" className="px-6 py-3">Amount</th>
-                  <th scope="col" className="px-6 py-3 text-right">Action</th>
+                  <th scope="col" className="px-6 py-3">
+                    Vendor
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Bill
+                  </th>
+                  <th scope="col" className="px-6 py-3">
+                    Amount
+                  </th>
+                  <th scope="col" className="px-6 py-3 text-right">
+                    Action
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-subtle">
@@ -39,9 +47,14 @@ export default function PayView({ bills, onPayBill }: PayViewProps) {
                     <td className="px-6 py-4 text-sm font-semibold text-ink">
                       {bill.vendorName}
                     </td>
-                    <td className="px-6 py-4 text-sm text-ink-muted">{bill.id}</td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {bill.id}
+                    </td>
                     <td className="px-6 py-4 text-sm font-semibold text-ink">
-                      ${bill.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                      $
+                      {bill.amount.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                      })}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button

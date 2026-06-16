@@ -25,6 +25,7 @@ export function sendInvoiceEmail(invoice: Invoice) {
     invoice_id: invoice.id,
     vendor_name: invoice.vendorName,
     invoice_date: invoice.date,
+    invoice_due_date: invoice.dueDate || "—",
     invoice_amount: invoice.amount.toFixed(2),
     invoice_status: invoice.status,
   });

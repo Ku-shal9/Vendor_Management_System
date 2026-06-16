@@ -92,6 +92,9 @@ export default function BillingView({ bills }: BillingViewProps) {
                     Date
                   </th>
                   <th scope="col" className="px-6 py-3">
+                    Due Date
+                  </th>
+                  <th scope="col" className="px-6 py-3">
                     Amount
                   </th>
                   <th scope="col" className="px-6 py-3">
@@ -118,6 +121,9 @@ export default function BillingView({ bills }: BillingViewProps) {
                     </td>
                     <td className="px-6 py-4 text-sm text-ink-muted">
                       {bill.date}
+                    </td>
+                    <td className="px-6 py-4 text-sm text-ink-muted">
+                      {bill.dueDate || "—"}
                     </td>
                     <td className="px-6 py-4 text-sm font-semibold text-ink">
                       $

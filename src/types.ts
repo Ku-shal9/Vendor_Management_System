@@ -6,6 +6,12 @@ export interface VendorItem {
   description?: string;
 }
 
+export interface PurchaseItem {
+  name: string;
+  price: number;
+  quantity: number;
+}
+
 export interface Vendor {
   id: string;
   name: string;
@@ -14,6 +20,7 @@ export interface Vendor {
   email: string;
   phone: string;
   address: string;
+  panNumber?: string;
   items?: VendorItem[];
 }
 
@@ -23,9 +30,13 @@ export interface Invoice {
   vendorName: string;
   amount: number;
   date: string;
+  dueDate?: string;
+  paidAt?: string;
   status: "Paid" | "Pending" | "Overdue";
   purchaseRequestId?: string;
   billId?: string;
+  items?: PurchaseItem[];
+  pdfPath?: string;
 }
 
 export interface Bill {
@@ -35,6 +46,8 @@ export interface Bill {
   vendorName: string;
   amount: number;
   date: string;
+  dueDate?: string;
+  items?: PurchaseItem[];
   status: "Due" | "Paid";
   invoiceId?: string;
   paidAt?: string;
@@ -45,6 +58,7 @@ export interface Registration {
   id: string;
   companyName: string;
   category: string;
+  panNumber: string;
   contactName: string;
   contactEmail: string;
   contactPhone: string;
@@ -62,12 +76,9 @@ export interface PurchaseRequest {
   vendorId: string;
   vendorName: string;
   date: string;
-  items: Array<{
-    name: string;
-    price: number;
-    quantity: number;
-  }>;
+  items: PurchaseItem[];
   totalAmount: number;
+  dueDate?: string;
   status: "Pending" | "Approved" | "Rejected" | "Delivered";
   createdBy?: string;
 }
@@ -89,7 +100,8 @@ export type NotificationType =
   | "purchase_request_accepted"
   | "purchase_request_delivered"
   | "bill_created"
-  | "payment_completed";
+  | "payment_completed"
+  | "payment_due_tomorrow";
 
 export interface Notification {
   id: string;
