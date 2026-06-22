@@ -51,6 +51,12 @@ clance-solutions-vms/
 └── README.md
 ```
 
+## Diagrams
+
+![Component Diagram](diagrams/component%20diagram.png)
+
+![Level 1 Data Flow Diagram](diagrams/level_1_DFD.drawio.png)
+
 ## Features
 
 ### Role-Based Access
@@ -182,13 +188,13 @@ The application automatically seeds the database with initial data on every serv
 
 ### Users
 
-| Email                   | Password        | Role             | Name                |
-| ----------------------- | --------------- | ---------------- | ------------------- |
-| admin@clance.com        | admin123        | Admin            | Admin               |
-| finance@clance.com      | finance123      | FinancialManager | Maria Chen          |
-| finance2@clance.com     | financepassword | FinancialManager | Alex Rivera         |
-| partner@techflow.com    | vendor123       | Vendor           | Sarah J. Montgomery |
-| supplier@dishome.com.np | vendorpassword  | Vendor           | Sujan Chhetri       |
+| Email                   | Role             | Name                |
+| ----------------------- | ---------------- | ------------------- |
+| admin@clance.com        | Admin            | Admin               |
+| finance@clance.com      | FinancialManager | Maria Chen          |
+| finance2@clance.com     | FinancialManager | Alex Rivera         |
+| partner@techflow.com    | Vendor           | Sarah J. Montgomery |
+| supplier@dishome.com.np | Vendor           | Sujan Chhetri       |
 
 ### Vendors
 
