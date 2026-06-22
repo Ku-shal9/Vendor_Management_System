@@ -57,6 +57,8 @@ clance-solutions-vms/
 
 ![Level 1 Data Flow Diagram](diagrams/level_1_DFD.drawio.png)
 
+![MongoDB Schema](diagrams/mongo-schema.png)
+
 ## Features
 
 ### Role-Based Access

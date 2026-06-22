@@ -1,5 +1,13 @@
 import { useState, useEffect } from "react";
 import {
+  getUserSession,
+  setUserSession,
+  clearUserSession,
+  getViewSession,
+  setViewSession,
+  clearViewSession,
+} from "./utils/session.js";
+import {
   Vendor,
   Invoice,
   Bill,
@@ -34,9 +42,15 @@ export default function App() {
   const { pushToast } = useToast();
   const confirm = useConfirm();
   const { fetchNotifications } = useNotifications();
-  const [currentView, setCurrentView] = useState<string>("login");
+  const [user, setUser] = useState<UserInfo | null>(() => getUserSession());
+  const [currentView, setCurrentView] = useState<string>(() => {
+    const savedUser = getUserSession();
+    if (savedUser) {
+      return getViewSession() || DEFAULT_VIEW[savedUser.role];
+    }
+    return "login";
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [user, setUser] = useState<UserInfo | null>(null);
 
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -98,19 +112,25 @@ export default function App() {
 
   useEffect(() => {
     fetchAllData();
+    const savedUser = getUserSession();
+    if (savedUser) {
+      fetchNotifications(savedUser.email);
+    }
   }, []);
 
   useEffect(() => {
-    if (!user || user.role !== "FinancialManager") return;
+    if (!user) return;
 
-    refreshBills();
-    const interval = setInterval(refreshBills, 5_000);
+    const interval = setInterval(fetchAllData, 5000);
     return () => clearInterval(interval);
-  }, [user?.email, user?.role]);
+  }, [user?.email]);
 
   const handleLoginSuccess = (loggedInUser: UserInfo) => {
     setUser(loggedInUser);
-    setCurrentView(DEFAULT_VIEW[loggedInUser.role]);
+    const defaultView = DEFAULT_VIEW[loggedInUser.role];
+    setCurrentView(defaultView);
+    setUserSession(loggedInUser);
+    setViewSession(defaultView);
     pushToast(`Signed in as ${loggedInUser.name}`);
     // Fetch notifications for the logged-in user
     fetchNotifications(loggedInUser.email);
@@ -120,17 +140,21 @@ export default function App() {
     setUser(null);
     setCurrentView("login");
     setSelectedVendor(null);
+    clearUserSession();
+    clearViewSession();
   };
 
   const handleNavigateTo = (view: string) => {
     if (user && !canAccessView(user.role, view)) return;
     setSelectedVendor(null);
     setCurrentView(view);
+    setViewSession(view);
   };
 
   const handleSelectVendorDetail = (vendor: Vendor) => {
     setSelectedVendor(vendor);
     setCurrentView("vendor-detail");
+    setViewSession("vendor-detail");
   };
 
   const handleUpdateVendor = async (vendor: Vendor) => {
@@ -164,6 +188,7 @@ export default function App() {
     if (response.ok) {
       await fetchAllData();
       setCurrentView("vendors");
+      setViewSession("vendors");
       pushToast("Vendor record deleted");
     } else {
       pushToast("Vendor delete failed", "error");
@@ -246,6 +271,8 @@ export default function App() {
   const handleRegistrationSuccess = () => {
     fetchAllData();
     setCurrentView("login");
+    clearUserSession();
+    clearViewSession();
     pushToast("Registration submitted for review");
   };
 
