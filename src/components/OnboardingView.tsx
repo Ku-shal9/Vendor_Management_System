@@ -125,15 +125,15 @@ export default function OnboardingView({
     const phoneError = validatePhone(phone, false);
     const panError = validatePanNumber(panNumber, "PAN number");
     const addressError = validateOptionalText(address, "Business address", 300);
-    const formError = [
+    const validationError = [
       nameError,
       emailError,
       phoneError,
       panError,
       addressError,
     ].find(Boolean);
-    if (formError) {
-      setFormError(formError as string);
+    if (validationError) {
+      setFormError(validationError as string);
       return;
     }
 
