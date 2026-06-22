@@ -14,6 +14,9 @@ export function buildBillFromPurchase(
     dueDate: purchase.dueDate,
     items: purchase.items,
     status: "Due",
+    invoiceId: "",
+    paidAt: "",
+    stripePaymentIntentId: "",
   };
 }
 

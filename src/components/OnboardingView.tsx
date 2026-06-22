@@ -266,11 +266,10 @@ export default function OnboardingView({
             className="relative z-10 flex flex-col items-center gap-1"
           >
             <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${
-                step >= n
-                  ? "bg-primary text-white"
-                  : "bg-surface text-ink-muted border border-border"
-              }`}
+              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm transition-colors ${step >= n
+                ? "bg-primary text-white"
+                : "bg-surface text-ink-muted border border-border"
+                }`}
             >
               {n}
             </div>
@@ -447,7 +446,7 @@ export default function OnboardingView({
               </div>
               <div className="p-6 space-y-4">
                 <p className="text-sm text-ink-muted">
-                  Upload PDF copies of your business license and W-9. These are
+                  Upload PDF copies of your company registration and proposal documents. These are
                   required for vendor approval. PDF only, maximum 5MB each.
                 </p>
 
@@ -467,11 +466,10 @@ export default function OnboardingView({
                     onClick={() =>
                       document.getElementById("license-file-input")?.click()
                     }
-                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                      licenseFile
-                        ? "border-success-ink/30 bg-success-surface"
-                        : "border-border hover:border-primary/40 hover:bg-surface-muted"
-                    }`}
+                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${licenseFile
+                      ? "border-success-ink/30 bg-success-surface"
+                      : "border-border hover:border-primary/40 hover:bg-surface-muted"
+                      }`}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -487,7 +485,7 @@ export default function OnboardingView({
                       />
                       <div>
                         <p className="text-sm font-semibold text-ink">
-                          Business license *
+                          Company Registration *
                         </p>
                         <p className="text-xs text-ink-muted">
                           {licenseFile
@@ -537,11 +535,10 @@ export default function OnboardingView({
                     onClick={() =>
                       document.getElementById("w9-file-input")?.click()
                     }
-                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${
-                      w9File
-                        ? "border-success-ink/30 bg-success-surface"
-                        : "border-border hover:border-primary/40 hover:bg-surface-muted"
-                    }`}
+                    className={`w-full flex items-center justify-between p-4 border-2 border-dashed rounded-xl text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary ${w9File
+                      ? "border-success-ink/30 bg-success-surface"
+                      : "border-border hover:border-primary/40 hover:bg-surface-muted"
+                      }`}
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -557,7 +554,7 @@ export default function OnboardingView({
                       />
                       <div>
                         <p className="text-sm font-semibold text-ink">
-                          W-9 / Tax document *
+                          Propsal Document *
                         </p>
                         <p className="text-xs text-ink-muted">
                           {w9File
