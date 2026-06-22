@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -35,10 +36,20 @@ export function useNotifications() {
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const { pushToast } = useToast();
+  // Store userId in a ref so polling and markAsRead can always access the latest
+  // value without it being a reactive dependency that restarts intervals.
+  const userIdRef = useRef<string | null>(null);
+  const unreadCountRef = useRef<number>(0);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // Keep unreadCountRef in sync so the polling closure reads the latest value.
+  useEffect(() => {
+    unreadCountRef.current = unreadCount;
+  }, [unreadCount]);
+
   const fetchNotifications = useCallback(async (userId: string) => {
+    userIdRef.current = userId;
     try {
       const res = await fetch(`/api/notifications?userId=${userId}`);
       if (res.ok) {
@@ -57,7 +68,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            userId: notifications[0]?.userId,
+            userId: userIdRef.current,
             notificationIds,
           }),
         });
@@ -68,7 +79,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         console.error("Failed to mark notifications as read:", err);
       }
     },
-    [notifications],
+    [],
   );
 
   const markAllAsRead = useCallback(async () => {
@@ -86,29 +97,32 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Poll for new notifications every 30 seconds and show toast for new ones
+  // Poll for new notifications every 30 seconds and show toast for new ones.
+  // Reads userId and unread count from refs so the interval is created once
+  // and never restarted due to notification state changes.
   useEffect(() => {
-    if (!notifications.length) return;
-
     const interval = setInterval(async () => {
-      const prevUnread = notifications.filter((n) => !n.read).length;
-      const res = await fetch(
-        `/api/notifications?userId=${notifications[0].userId}`,
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const newUnread = (data.notifications || []).filter(
-          (n: Notification) => !n.read,
-        ).length;
-        setNotifications(data.notifications || []);
-        if (newUnread > prevUnread) {
-          pushToast("You have new notifications", "success");
+      const userId = userIdRef.current;
+      if (!userId) return;
+      try {
+        const res = await fetch(`/api/notifications?userId=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          const newUnread = (data.notifications || []).filter(
+            (n: Notification) => !n.read,
+          ).length;
+          if (newUnread > unreadCountRef.current) {
+            pushToast("You have new notifications", "success");
+          }
+          setNotifications(data.notifications || []);
         }
+      } catch (err) {
+        console.error("Failed to poll notifications:", err);
       }
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [notifications, pushToast]);
+  }, [pushToast]);
 
   return (
     <NotificationContext.Provider

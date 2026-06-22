@@ -1,4 +1,4 @@
-import { useState, FormEvent, useEffect } from "react";
+import { useState, FormEvent, useEffect, useMemo } from "react";
 import {
   Vendor,
   Invoice,
@@ -69,7 +69,7 @@ export default function VendorPortalView({
   const [deliverDueDate, setDeliverDueDate] = useState("");
   const [deliverError, setDeliverError] = useState("");
 
-  const dueDateRange = getDueDateRange();
+  const dueDateRange = useMemo(() => getDueDateRange(), []);
   const passwordStrength = getPasswordStrength(newPassword);
   const passwordStrengthClass = [
     "text-ink-subtle",
@@ -172,24 +172,28 @@ export default function VendorPortalView({
       return;
     }
 
-    const response = await fetch("/api/users/password", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: user.email,
-        currentPassword,
-        newPassword,
-      }),
-    });
+    try {
+      const response = await fetch("/api/users/password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: user.email,
+          currentPassword,
+          newPassword,
+        }),
+      });
 
-    if (response.ok) {
-      pushToast("Password updated successfully");
-      setCurrentPassword("");
-      setNewPassword("");
-      setConfirmPassword("");
-    } else {
-      const data = await response.json();
-      setPasswordError(data.error || "Failed to update password");
+      if (response.ok) {
+        pushToast("Password updated successfully");
+        setCurrentPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+      } else {
+        const data = await response.json();
+        setPasswordError(data.error || "Failed to update password");
+      }
+    } catch {
+      setPasswordError("Network error. Check your connection and try again.");
     }
   };
 

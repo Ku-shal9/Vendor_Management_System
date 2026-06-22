@@ -8,7 +8,7 @@ interface NotificationBellProps {
 }
 
 export default function NotificationBell({ user }: NotificationBellProps) {
-  const { notifications, unreadCount, fetchNotifications, markAllAsRead } =
+  const { unreadCount, fetchNotifications, markAllAsRead } =
     useNotifications();
 
   useEffect(() => {
