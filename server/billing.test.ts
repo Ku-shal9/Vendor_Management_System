@@ -26,6 +26,9 @@ describe("buildBillFromPurchase", () => {
     expect(bill.dueDate).toBe("2026-07-01");
     expect(bill.items).toEqual([{ name: "Widget", price: 50, quantity: 2 }]);
     expect(bill.purchaseRequestId).toBe("PRQ-001");
+    expect(bill.invoiceId).toBe("");
+    expect(bill.stripePaymentIntentId).toBe("");
+    expect(bill.paidAt).toBeUndefined();
   });
 });
 
@@ -51,6 +54,29 @@ describe("buildInvoiceFromBill", () => {
     expect(invoice.items).toEqual([{ name: "Widget", price: 50, quantity: 2 }]);
     expect(invoice.billId).toBe("BILL-001");
     expect(invoice.purchaseRequestId).toBe("PRQ-001");
+    expect(invoice.paidAt).toBeDefined();
+    expect(new Date(invoice.paidAt).toISOString()).toBe(invoice.paidAt);
+  });
+
+  it("uses current date for paidAt even when bill paidAt is empty", () => {
+    const billWithEmptyPaidAt = {
+      id: "BILL-002",
+      purchaseRequestId: "PRQ-002",
+      vendorId: "techflow",
+      vendorName: "TechFlow",
+      amount: 200,
+      date: "2026-06-01",
+      dueDate: "2026-07-01",
+      items: [{ name: "Gadget", price: 100, quantity: 2 }],
+      status: "Due",
+      paidAt: "",
+    };
+    const invoice = buildInvoiceFromBill(billWithEmptyPaidAt, "INV-002");
+
+    expect(invoice.status).toBe("Paid");
+    expect(invoice.paidAt).toBeDefined();
+    expect(invoice.paidAt).not.toBe("");
+    expect(new Date(invoice.paidAt).getTime()).not.toBeNaN();
   });
 });
 

@@ -15,7 +15,6 @@ export function buildBillFromPurchase(
     items: purchase.items,
     status: "Due",
     invoiceId: "",
-    paidAt: "",
     stripePaymentIntentId: "",
   };
 }
@@ -32,7 +31,7 @@ export function buildInvoiceFromBill(
     amount: bill.amount,
     date: new Date().toISOString().split("T")[0],
     dueDate: bill.dueDate,
-    paidAt: bill.paidAt ?? new Date().toISOString(),
+    paidAt: new Date().toISOString(),
     status: "Paid",
     purchaseRequestId: bill.purchaseRequestId,
     billId: bill.id,
