@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import type { Bill } from "../src/types.js";
 import {
   buildBillFromPurchase,
   buildInvoiceFromBill,
@@ -59,7 +60,7 @@ describe("buildInvoiceFromBill", () => {
   });
 
   it("uses current date for paidAt even when bill paidAt is empty", () => {
-    const billWithEmptyPaidAt = {
+    const billWithEmptyPaidAt: Bill = {
       id: "BILL-002",
       purchaseRequestId: "PRQ-002",
       vendorId: "techflow",
@@ -81,7 +82,7 @@ describe("buildInvoiceFromBill", () => {
 
   it("preserves valid paidAt from bill when present", () => {
     const existingPaidAt = "2026-06-15T12:30:00.000Z";
-    const billWithExistingPaidAt = {
+    const billWithExistingPaidAt: Bill = {
       id: "BILL-003",
       purchaseRequestId: "PRQ-003",
       vendorId: "techflow",
