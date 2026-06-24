@@ -78,6 +78,25 @@ describe("buildInvoiceFromBill", () => {
     expect(invoice.paidAt).not.toBe("");
     expect(new Date(invoice.paidAt).getTime()).not.toBeNaN();
   });
+
+  it("preserves valid paidAt from bill when present", () => {
+    const existingPaidAt = "2026-06-15T12:30:00.000Z";
+    const billWithExistingPaidAt = {
+      id: "BILL-003",
+      purchaseRequestId: "PRQ-003",
+      vendorId: "techflow",
+      vendorName: "TechFlow",
+      amount: 300,
+      date: "2026-06-01",
+      dueDate: "2026-07-01",
+      items: [{ name: "Thing", price: 150, quantity: 2 }],
+      status: "Due",
+      paidAt: existingPaidAt,
+    };
+    const invoice = buildInvoiceFromBill(billWithExistingPaidAt, "INV-003");
+
+    expect(invoice.paidAt).toBe(existingPaidAt);
+  });
 });
 
 describe("buildBillPaidUpdate", () => {

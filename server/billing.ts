@@ -31,7 +31,10 @@ export function buildInvoiceFromBill(
     amount: bill.amount,
     date: new Date().toISOString().split("T")[0],
     dueDate: bill.dueDate,
-    paidAt: new Date().toISOString(),
+    paidAt:
+      typeof bill.paidAt === "string" && bill.paidAt.trim() !== ""
+        ? bill.paidAt
+        : new Date().toISOString(),
     status: "Paid",
     purchaseRequestId: bill.purchaseRequestId,
     billId: bill.id,
